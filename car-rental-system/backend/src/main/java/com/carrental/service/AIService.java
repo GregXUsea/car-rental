@@ -1,0 +1,263 @@
+package com.carrental.service;
+
+import com.carrental.dto.AIRecommendResult;
+import com.carrental.entity.Car;
+import com.carrental.entity.MaintenanceRecord;
+import com.carrental.mapper.MaintenanceRecordMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import okhttp3.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+@Service
+public class AIService {
+
+    @Value("${openai.api-key}")
+    private String apiKey;
+
+    @Value("${openai.base-url}")
+    private String baseUrl;
+
+    @Value("${openai.model}")
+    private String model;
+
+    @Autowired
+    private CarService carService;
+
+    @Autowired
+    private MaintenanceRecordMapper maintenanceRecordMapper;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build();
+
+    public AIRecommendResult recommendCars(String userRequirement) {
+        List<Car> availableCars = carService.listAvailable();
+
+        // 先用本地关键词匹配
+        AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
+
+        // 如果 API key 未配置或无效，直接返回本地结果
+        if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
+            return localResult;
+        }
+
+        StringBuilder carListStr = new StringBuilder();
+        for (Car car : availableCars) {
+            carListStr.append(String.format(
+                    "ID:%d, %s %s, %s, %d座, %.0f元/天, %s, 里程%dkm, %s\n",
+                    car.getId(), car.getBrand(), car.getModel(), car.getColor(),
+                    car.getSeats(), car.getPricePerDay(), car.getCategory(),
+                    car.getMileage(), car.getDescription()));
+        }
+
+        String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
+                "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
+                "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
+                "最多推荐3辆车，按匹配度从高到低排序。只返回JSON，不要其他文字。";
+
+        String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
+
+        try {
+            String response = callOpenAI(systemPrompt, userPrompt);
+            return parseRecommendResult(response, availableCars);
+        } catch (Exception e) {
+            return localResult;
+        }
+    }
+
+    public Map<String, Object> getMaintenancePrediction(Long carId) {
+        Car car = carService.getById(carId);
+        if (car == null) {
+            throw new RuntimeException("车辆不存在");
+        }
+
+        List<MaintenanceRecord> records = maintenanceRecordMapper.selectList(
+                new LambdaQueryWrapper<MaintenanceRecord>()
+                        .eq(MaintenanceRecord::getCarId, carId)
+                        .orderByDesc(MaintenanceRecord::getMaintenanceDate));
+
+        StringBuilder recordStr = new StringBuilder();
+        for (MaintenanceRecord r : records) {
+            recordStr.append(String.format("日期:%s, 里程:%dkm, 类型:%s, 描述:%s, 费用:%.0f元\n",
+                    r.getMaintenanceDate(), r.getMileageAtMaintenance(),
+                    r.getMaintenanceType(), r.getDescription(), r.getCost()));
+        }
+
+        String systemPrompt = "你是一个专业的汽车维护顾问。根据车辆信息和历史维护记录，预测下次维护时间和建议。" +
+                "用中文回答，返回JSON格式：\n" +
+                "{\"nextMaintenanceDate\":\"预计日期\",\"nextMaintenanceType\":\"保养类型\",\"suggestions\":[\"建议1\",\"建议2\"],\"riskLevel\":\"低/中/高\"}\n" +
+                "只返回JSON。";
+
+        String userPrompt = String.format(
+                "车辆：%s %s, 当前里程:%dkm, 上次保养:%s\n\n历史维护记录：\n%s",
+                car.getBrand(), car.getModel(), car.getMileage(),
+                car.getLastMaintainDate(), recordStr);
+
+        try {
+            String response = callOpenAI(systemPrompt, userPrompt);
+            return objectMapper.readValue(response, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("nextMaintenanceDate", "数据不足，无法准确预测");
+            fallback.put("nextMaintenanceType", "常规保养");
+            fallback.put("suggestions", List.of("建议定期检查机油", "注意轮胎磨损情况"));
+            fallback.put("riskLevel", "中");
+            return fallback;
+        }
+    }
+
+    private String callOpenAI(String systemPrompt, String userPrompt) throws IOException {
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)));
+        requestBody.put("temperature", 0.7);
+        requestBody.put("max_tokens", 1000);
+
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        Request request = new Request.Builder()
+                .url(baseUrl + "/chat/completions")
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("API call failed: " + response.code());
+            }
+            String body = response.body().string();
+            JsonNode root = objectMapper.readTree(body);
+            return root.path("choices").get(0).path("message").path("content").asText();
+        }
+    }
+
+    private AIRecommendResult parseRecommendResult(String response, List<Car> availableCars) {
+        try {
+            // 清理可能的markdown包裹
+            String json = response.trim();
+            if (json.startsWith("```")) {
+                json = json.replaceAll("```json?", "").replaceAll("```", "").trim();
+            }
+
+            JsonNode root = objectMapper.readTree(json);
+            AIRecommendResult result = new AIRecommendResult();
+            result.setSummary(root.path("summary").asText());
+
+            Map<Long, Car> carMap = availableCars.stream()
+                    .collect(Collectors.toMap(Car::getId, c -> c));
+
+            List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
+            JsonNode recs = root.path("recommendations");
+            for (JsonNode rec : recs) {
+                AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+                Long carId = rec.path("carId").asLong();
+                item.setCar(carMap.get(carId));
+                item.setReason(rec.path("reason").asText());
+                item.setMatchScore(rec.path("matchScore").asText());
+                if (item.getCar() != null) {
+                    items.add(item);
+                }
+            }
+            result.setRecommendations(items);
+            return result;
+        } catch (Exception e) {
+            return fallbackRecommend("", availableCars);
+        }
+    }
+
+    private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars) {
+        AIRecommendResult result = new AIRecommendResult();
+
+        String req = requirement.toLowerCase();
+        List<Car> scored = new ArrayList<>(cars);
+
+        // 根据关键词给车辆打分排序
+        scored.sort((a, b) -> {
+            int scoreA = calcMatchScore(a, req);
+            int scoreB = calcMatchScore(b, req);
+            return scoreB - scoreA;
+        });
+
+        List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
+        int count = Math.min(3, scored.size());
+        for (int i = 0; i < count; i++) {
+            Car car = scored.get(i);
+            AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+            item.setCar(car);
+            item.setReason(buildReason(car, req));
+            item.setMatchScore(calcMatchScore(car, req) + "%");
+            items.add(item);
+        }
+
+        result.setSummary(String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", cars.size(), items.size()));
+        result.setRecommendations(items);
+        return result;
+    }
+
+    private int calcMatchScore(Car car, String req) {
+        int score = 50; // 基础分
+        String info = (car.getBrand() + " " + car.getModel() + " " + car.getCategory() + " " + car.getDescription()).toLowerCase();
+
+        // 价格匹配
+        if (req.contains("便宜") || req.contains("经济") || req.contains("省钱") || req.contains("低端")) {
+            if (car.getPricePerDay().doubleValue() < 200) score += 30;
+            else if (car.getPricePerDay().doubleValue() < 300) score += 15;
+        }
+        if (req.contains("高档") || req.contains("豪华") || req.contains("高端") || req.contains("商务")) {
+            if (car.getPricePerDay().doubleValue() >= 350) score += 30;
+            else if (car.getPricePerDay().doubleValue() >= 250) score += 15;
+        }
+        if (req.contains("顶级") || req.contains("旗舰")) {
+            if (car.getPricePerDay().doubleValue() >= 450) score += 35;
+        }
+
+        // 人数匹配
+        if (req.contains("6人") || req.contains("6个") || req.contains("六人") || req.contains("大家庭")) {
+            if (car.getSeats() >= 6) score += 25;
+        }
+        if (req.contains("7人") || req.contains("7个") || req.contains("七人") || req.contains("多人")) {
+            if (car.getSeats() >= 7) score += 30;
+        }
+
+        // 类型匹配
+        if ((req.contains("suv") || req.contains("越野")) && "SUV".equals(car.getCategory())) score += 20;
+        if ((req.contains("商务") || req.contains("接待")) && "MPV".equals(car.getCategory())) score += 20;
+        if ((req.contains("电车") || req.contains("纯电") || req.contains("新能源")) && "新能源".equals(car.getCategory())) score += 20;
+        if ((req.contains("轿车") || req.contains("通勤")) && "中低端".equals(car.getCategory())) score += 15;
+
+        // 品牌关键词匹配
+        String brandLower = car.getBrand().toLowerCase();
+        String modelLower = car.getModel().toLowerCase();
+        if (req.contains(brandLower) || req.contains(modelLower)) score += 20;
+
+        return Math.min(98, score);
+    }
+
+    private String buildReason(Car car, String req) {
+        StringBuilder reason = new StringBuilder();
+        if (car.getPricePerDay().doubleValue() < 200) reason.append("经济实惠，");
+        else if (car.getPricePerDay().doubleValue() < 350) reason.append("性价比出色，");
+        else reason.append("豪华品质，");
+
+        if (car.getSeats() >= 7) reason.append("7座大空间，");
+        else if (car.getSeats() >= 6) reason.append("6座宽敞，");
+
+        reason.append(car.getDescription());
+        return reason.toString();
+    }
+}
