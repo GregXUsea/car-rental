@@ -170,7 +170,10 @@ const handleLogin = async () => {
 const handleSendCode = async () => {
   // 先校验用户名和邮箱
   try {
-    await resetFormRef.value.validate(['username', 'email'])
+    await Promise.all([
+      resetFormRef.value.validateField('username'),
+      resetFormRef.value.validateField('email')
+    ])
   } catch {
     return
   }
