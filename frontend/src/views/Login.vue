@@ -67,7 +67,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 
 const router = useRouter()
@@ -179,7 +179,13 @@ const handleSendCode = async () => {
     email: resetForm.email
   })
   if (res.code === 200) {
-    ElMessage.success('验证码已发送（演示版：请查看后端控制台日志）')
+    ElMessage.success('验证码已发送')
+    // 演示版：弹窗显示验证码，生产环境应通过邮件发送
+    ElMessageBox.alert('验证码：' + res.data, '演示版 - 验证码', {
+      confirmButtonText: '我知道了',
+      type: 'info',
+      center: true
+    })
     // 60秒倒计时
     codeCountdown.value = 60
     countdownTimer = setInterval(() => {

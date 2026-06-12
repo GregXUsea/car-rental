@@ -110,7 +110,8 @@ public class UserService {
         if (code == null) {
             return Result.error("请稍后再试");
         }
-        return Result.success("验证码已发送至邮箱，请查收（演示版：请查看控制台日志）");
+        // 演示版：验证码直接返回，生产环境应通过邮件发送，不可返回给前端
+        return Result.success(code);
     }
 
     /**
