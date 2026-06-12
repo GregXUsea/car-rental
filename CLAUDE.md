@@ -26,6 +26,35 @@
 - 提交前确认 `git config user.name` 和 `git config user.email` 为个人真实信息（非 AI 账号）
 - 当前仓库已绑定 GitHub 远程仓库，推送前确认分支为 `main`
 
+## 团队协作
+
+### 成员与分工
+
+| 成员 | 开发环境 | 职责 |
+|------|----------|------|
+| GregXUsea | VS Code | 按功能模块分工（非前后台划分） |
+| 同学 | IntelliJ IDEA | 同上，每人工作量约 50% |
+
+- 组内分工需在课程设计报告中明确写明
+- 按**功能模块**分工（如：登录注册模块、租车服务模块），不建议按前后台划分
+- 每人工作量占比约 **50%**
+
+### IDE 兼容注意事项
+
+- `.idea/` 已在 `.gitignore` 中排除（IntelliJ IDEA 配置）
+- `.vscode/` 已跟踪（VS Code 配置），IntelliJ 用户不要删除此目录
+- 不要提交个人 IDE 的本地配置（如 workspace.xml、运行配置等）
+- `backend/pom.xml` 是项目公共配置，修改前双方沟通确认
+- 依赖变更（pom.xml / package.json）需及时同步给对方
+
+### 协作 Git 规范
+
+- **每人用自己的 GitHub 账号提交**，教师通过提交记录核查工作量
+- 提交前确认 `git config user.name` 和 `git config user.email` 为本人信息
+- **严禁**在 commit message 中出现 "Co-authored-by: AI" 等 AI 标记
+- 每次提交聚焦单一功能点，commit message 用中文清晰描述
+- 拉取代码前先 `git stash` 暂存本地改动，避免冲突
+
 ## 项目结构
 
 ```
