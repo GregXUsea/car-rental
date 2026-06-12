@@ -5,6 +5,7 @@ import com.carrental.dto.*;
 import com.carrental.entity.User;
 import com.carrental.mapper.UserMapper;
 import com.carrental.util.JwtUtil;
+import com.carrental.util.VerificationCodeStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,9 @@ public class UserService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private VerificationCodeStore codeStore;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -89,14 +93,40 @@ public class UserService {
         return rawPassword.equals(storedPassword);
     }
 
-    public Result<String> resetPassword(String username, String phone, String newPassword) {
+    /**
+     * 发送找回密码验证码（演示版：验证码打印在控制台，生产环境应通过邮件发送）
+     */
+    public Result<String> sendResetCode(SendCodeDTO dto) {
         User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+                new LambdaQueryWrapper<User>().eq(User::getUsername, dto.getUsername()));
         if (user == null) return Result.error("用户不存在");
-        if (user.getPhone() == null || !user.getPhone().equals(phone)) {
-            return Result.error("手机号验证失败");
+        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(dto.getEmail())) {
+            return Result.error("邮箱与注册邮箱不一致");
         }
-        user.setPassword(passwordEncoder.encode(newPassword));
+        if (!codeStore.canSend(dto.getEmail())) {
+            return Result.error("验证码已发送，请60秒后再试");
+        }
+        String code = codeStore.generateAndStore(dto.getEmail());
+        if (code == null) {
+            return Result.error("请稍后再试");
+        }
+        return Result.success("验证码已发送至邮箱，请查收（演示版：请查看控制台日志）");
+    }
+
+    /**
+     * 找回密码：验证邮箱验证码后重置密码
+     */
+    public Result<String> resetPassword(ResetPasswordDTO dto) {
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, dto.getUsername()));
+        if (user == null) return Result.error("用户不存在");
+        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(dto.getEmail())) {
+            return Result.error("邮箱与注册邮箱不一致");
+        }
+        if (!codeStore.verify(dto.getEmail(), dto.getCode())) {
+            return Result.error("验证码错误或已过期");
+        }
+        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userMapper.updateById(user);
         return Result.success("密码重置成功");
     }

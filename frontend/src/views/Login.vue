@@ -24,13 +24,21 @@
     </div>
 
     <!-- 找回密码弹窗 -->
-    <el-dialog v-model="showReset" title="找回密码" width="440px" @open="resetDialogOpen" @close="resetDialogClose">
+    <el-dialog v-model="showReset" title="找回密码" width="460px" @open="resetDialogOpen" @close="resetDialogClose">
       <el-form :model="resetForm" :rules="resetRules" ref="resetFormRef" label-position="top">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="resetForm.username" placeholder="请输入用户名" prefix-icon="User" />
         </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="resetForm.phone" placeholder="请输入注册时的手机号" maxlength="11" />
+        <el-form-item label="注册邮箱" prop="email">
+          <el-input v-model="resetForm.email" placeholder="请输入注册时的邮箱" />
+        </el-form-item>
+        <el-form-item label="验证码" prop="code">
+          <div class="code-input-row">
+            <el-input v-model="resetForm.code" placeholder="请输入6位验证码" maxlength="6" style="flex:1" />
+            <el-button type="primary" :disabled="codeCountdown > 0" @click="handleSendCode" style="min-width:120px;margin-left:10px">
+              {{ codeCountdown > 0 ? codeCountdown + 's 后重发' : '发送验证码' }}
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="新密码" prop="newPassword">
           <el-input v-model="resetForm.newPassword" type="password" placeholder="请输入新密码" prefix-icon="Lock" show-password @input="checkResetPasswordStrength" />
@@ -69,7 +77,9 @@ const loading = ref(false)
 const showReset = ref(false)
 
 const form = reactive({ username: '', password: '' })
-const resetForm = reactive({ username: '', phone: '', newPassword: '', confirmPassword: '' })
+const resetForm = reactive({ username: '', email: '', code: '', newPassword: '', confirmPassword: '' })
+const codeCountdown = ref(0)
+let countdownTimer = null
 
 // 密码强度
 const resetStrength = reactive({ level: 0, text: '', colorClass: '' })
@@ -108,9 +118,9 @@ const validateResetStrength = (rule, value, callback) => {
   }
 }
 
-const validatePhone = (rule, value, callback) => {
-  if (value && !/^1[3-9]\d{9}$/.test(value)) {
-    callback(new Error('请输入正确的11位手机号'))
+const validateEmail = (rule, value, callback) => {
+  if (value && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+    callback(new Error('请输入正确的邮箱地址'))
   } else {
     callback()
   }
@@ -118,10 +128,11 @@ const validatePhone = (rule, value, callback) => {
 
 const resetRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  phone: [
-    { required: true, message: '请输入手机号', trigger: 'blur' },
-    { validator: validatePhone, trigger: 'blur' }
+  email: [
+    { required: true, message: '请输入注册邮箱', trigger: 'blur' },
+    { validator: validateEmail, trigger: 'blur' }
   ],
+  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '至少6位', trigger: 'blur' },
@@ -155,17 +166,47 @@ const handleLogin = async () => {
   }
 }
 
+// 发送验证码
+const handleSendCode = async () => {
+  // 先校验用户名和邮箱
+  try {
+    await resetFormRef.value.validate(['username', 'email'])
+  } catch {
+    return
+  }
+  const res = await api.post('/auth/send-reset-code', {
+    username: resetForm.username,
+    email: resetForm.email
+  })
+  if (res.code === 200) {
+    ElMessage.success('验证码已发送（演示版：请查看后端控制台日志）')
+    // 60秒倒计时
+    codeCountdown.value = 60
+    countdownTimer = setInterval(() => {
+      codeCountdown.value--
+      if (codeCountdown.value <= 0) {
+        clearInterval(countdownTimer)
+      }
+    }, 1000)
+  } else {
+    ElMessage.error(res.message)
+  }
+}
+
 const handleReset = async () => {
   await resetFormRef.value.validate()
   const res = await api.post('/auth/reset-password', {
     username: resetForm.username,
-    phone: resetForm.phone,
+    email: resetForm.email,
+    code: resetForm.code,
     newPassword: resetForm.newPassword
   })
   if (res.code === 200) {
     ElMessage.success('密码重置成功，请重新登录')
     showReset.value = false
     resetForm.username = ''
+    resetForm.email = ''
+    resetForm.code = ''
     resetForm.newPassword = ''
     resetForm.confirmPassword = ''
     resetStrength.level = 0
@@ -176,18 +217,24 @@ const handleReset = async () => {
 
 const resetDialogClose = () => {
   resetForm.username = ''
-  resetForm.phone = ''
+  resetForm.email = ''
+  resetForm.code = ''
   resetForm.newPassword = ''
   resetForm.confirmPassword = ''
   resetStrength.level = 0
+  codeCountdown.value = 0
+  if (countdownTimer) clearInterval(countdownTimer)
 }
 
 const resetDialogOpen = () => {
   resetForm.username = ''
-  resetForm.phone = ''
+  resetForm.email = ''
+  resetForm.code = ''
   resetForm.newPassword = ''
   resetForm.confirmPassword = ''
   resetStrength.level = 0
+  codeCountdown.value = 0
+  if (countdownTimer) clearInterval(countdownTimer)
   resetFormRef.value?.clearValidate()
 }
 </script>
@@ -257,4 +304,6 @@ const resetDialogOpen = () => {
 .strength-text.weak { color: #f56c6c; }
 .strength-text.medium { color: #e6a23c; }
 .strength-text.strong { color: #67c23a; }
+
+.code-input-row { display: flex; align-items: center; }
 </style>
