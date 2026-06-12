@@ -30,15 +30,15 @@
           </el-tab-pane>
 
           <el-tab-pane label="修改信息" name="edit">
-            <el-form :model="editForm" label-width="80px" style="max-width: 500px;">
+            <el-form :model="editForm" :rules="editRules" ref="editRef" label-width="80px" style="max-width: 500px;">
               <el-form-item label="昵称">
                 <el-input v-model="editForm.nickname" />
               </el-form-item>
-              <el-form-item label="手机号">
-                <el-input v-model="editForm.phone" />
+              <el-form-item label="手机号" prop="phone">
+                <el-input v-model="editForm.phone" placeholder="请输入11位手机号" maxlength="11" />
               </el-form-item>
-              <el-form-item label="邮箱">
-                <el-input v-model="editForm.email" />
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="editForm.email" placeholder="请输入邮箱地址" />
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="handleUpdate">保存修改</el-button>
@@ -86,6 +86,7 @@ import api from '../api'
 
 const userInfo = ref({})
 const activeTab = ref('info')
+const editRef = ref(null)
 const pwdRef = ref(null)
 
 const editForm = reactive({ nickname: '', phone: '', email: '' })
@@ -143,6 +144,29 @@ const pwdRules = {
   ]
 }
 
+// 手机号校验
+const validatePhone = (rule, value, callback) => {
+  if (value && !/^1[3-9]\d{9}$/.test(value)) {
+    callback(new Error('请输入正确的11位手机号'))
+  } else {
+    callback()
+  }
+}
+
+// 邮箱校验
+const validateEmail = (rule, value, callback) => {
+  if (value && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+    callback(new Error('请输入正确的邮箱地址'))
+  } else {
+    callback()
+  }
+}
+
+const editRules = {
+  phone: [{ validator: validatePhone, trigger: 'blur' }],
+  email: [{ validator: validateEmail, trigger: 'blur' }]
+}
+
 onMounted(async () => {
   const res = await api.get('/user/info')
   if (res.code === 200) {
@@ -154,6 +178,7 @@ onMounted(async () => {
 })
 
 const handleUpdate = async () => {
+  await editRef.value.validate()
   const res = await api.put('/user/update', editForm)
   if (res.code === 200) {
     ElMessage.success('修改成功')
