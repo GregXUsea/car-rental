@@ -1,6 +1,8 @@
 package com.carrental.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -13,6 +15,8 @@ public class RegisterDTO {
     @Size(min = 6, max = 20, message = "密码长度6-20位")
     private String password;
     private String nickname;
+    @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
+    @Email(message = "邮箱格式不正确")
     private String email;
 }

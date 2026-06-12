@@ -24,7 +24,7 @@ public class UserController {
     }
 
     @PutMapping("/update")
-    public Result<String> updateUser(HttpServletRequest request, @RequestBody UpdateUserDTO dto) {
+    public Result<String> updateUser(HttpServletRequest request, @Valid @RequestBody UpdateUserDTO dto) {
         Long userId = (Long) request.getAttribute("userId");
         return userService.updateUser(userId, dto);
     }
