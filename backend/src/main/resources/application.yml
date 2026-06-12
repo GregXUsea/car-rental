@@ -36,3 +36,6 @@ logging:
 spring.servlet.multipart:
   max-file-size: 5MB
   max-request-size: 10MB
+
+file:
+  upload-dir: ${user.dir}/uploads

@@ -51,9 +51,8 @@ public class FileController {
         }
 
         try {
-            // 创建存储目录：uploads/avatars/
-            String avatarDir = uploadDir + File.separator + "avatars";
-            Path dirPath = Paths.get(avatarDir);
+            // 创建存储目录：转为绝对路径，避免 Tomcat 临时目录问题
+            Path dirPath = Paths.get(uploadDir, "avatars").toAbsolutePath().normalize();
             if (!Files.exists(dirPath)) {
                 Files.createDirectories(dirPath);
             }
