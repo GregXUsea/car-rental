@@ -11,7 +11,17 @@
     <main class="main">
       <div class="profile-card">
         <div class="avatar-section">
-          <el-avatar :size="100" :src="userInfo.avatar">{{ (userInfo.nickname || '')[0] }}</el-avatar>
+          <el-upload
+            :show-file-list="false"
+            :before-upload="beforeAvatarUpload"
+            :http-request="handleAvatarUpload"
+            accept="image/*"
+          >
+            <el-avatar :size="100" :src="userInfo.avatar" class="avatar-uploader">
+              {{ (userInfo.nickname || '')[0] }}
+            </el-avatar>
+          </el-upload>
+          <p class="upload-tip">点击头像更换</p>
           <h2>{{ userInfo.nickname || userInfo.username }}</h2>
           <p>{{ userInfo.role === 1 ? '管理员' : '普通用户' }}</p>
         </div>
@@ -177,6 +187,40 @@ onMounted(async () => {
   }
 })
 
+// 头像上传前校验
+const beforeAvatarUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('仅支持图片格式')
+    return false
+  }
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isLt5M) {
+    ElMessage.error('头像文件不能超过 5MB')
+    return false
+  }
+  return true
+}
+
+// 自定义头像上传
+const handleAvatarUpload = async (options) => {
+  const formData = new FormData()
+  formData.append('file', options.file)
+  try {
+    const res = await api.post('/user/upload-avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    if (res.code === 200) {
+      userInfo.value.avatar = res.data + '?t=' + Date.now() // 加时间戳防缓存
+      ElMessage.success('头像更新成功')
+    } else {
+      ElMessage.error(res.message)
+    }
+  } catch {
+    ElMessage.error('上传失败')
+  }
+}
+
 const handleUpdate = async () => {
   await editRef.value.validate()
   const res = await api.put('/user/update', editForm)
@@ -210,7 +254,10 @@ const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN') : ''
 .main { max-width: 900px; margin: 20px auto; padding: 0 20px; }
 .profile-card { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
 .avatar-section { text-align: center; }
-.avatar-section h2 { margin-top: 12px; font-size: 22px; }
+.avatar-uploader { cursor: pointer; transition: opacity 0.3s; }
+.avatar-uploader:hover { opacity: 0.7; }
+.upload-tip { color: #999; font-size: 12px; margin-top: 6px; }
+.avatar-section h2 { margin-top: 6px; font-size: 22px; }
 .avatar-section p { color: #999; margin-top: 4px; }
 
 /* 密码强度样式 */
