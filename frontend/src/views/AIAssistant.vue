@@ -91,7 +91,11 @@ const handleRecommend = async () => {
       ElMessage.error(res.message)
     }
   } catch (e) {
-    ElMessage.error('请求失败，请稍后重试')
+    if (e.response && e.response.status === 401) {
+      // 401已由拦截器处理，不重复提示
+    } else {
+      ElMessage.error('请求失败，请稍后重试')
+    }
   } finally {
     loading.value = false
   }
