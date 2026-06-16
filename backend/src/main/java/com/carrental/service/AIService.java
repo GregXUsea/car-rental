@@ -69,7 +69,7 @@ public class AIService {
         String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
                 "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
                 "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
-                "铁规：1)用户提到人数时，绝不推荐座位数不够的车 2)必须推荐满3辆（除非可用车不足3辆），即使匹配度较低也列出来 3)优先推荐座位数满足且价格接近预算的车型。按匹配度从高到低排序。只返回JSON，不要其他文字。";
+                "铁规：1)用户提到人数时，绝不推荐座位数不够的车 2)如果所有车都坐不下，建议租多辆车组合，不要硬推不够座位的车 3)宁缺毋滥，只推荐真正合适的车。按匹配度从高到低排序。只返回JSON，不要其他文字。";
 
         String userPrompt = String.format("我的需求：%s\n\n可用车辆列表（注意座位数和状态）：\n%s", userRequirement, carListStr);
 
@@ -198,7 +198,8 @@ public class AIService {
     }
 
     /**
-     * 硬过滤：AI可能忽略座位限制，将不满足座位数的推荐剔除
+     * 硬过滤：AI可能忽略座位限制，将不满足座位数的推荐剔除。
+     * 如果所有车都坐不下，建议租多辆车组合。
      */
     private AIRecommendResult filterBySeats(AIRecommendResult aiResult, String requirement) {
         int requiredSeats = getRequiredSeats(requirement);
@@ -211,12 +212,40 @@ public class AIService {
                 filtered.add(item);
             }
         }
-        // 如果全部被过滤，保留原结果并加提示
-        if (filtered.isEmpty()) {
-            aiResult.setSummary(aiResult.getSummary() + "（注意：当前无" + requiredSeats + "座以上车辆，建议放宽条件）");
+        // 有合适的车，直接返回
+        if (!filtered.isEmpty()) {
+            aiResult.setRecommendations(filtered);
             return aiResult;
         }
-        aiResult.setRecommendations(filtered);
+
+        // 所有车都坐不下 → 计算多车组合方案
+        // 找到最大座位数的车，算需要几辆
+        int maxSeats = 0;
+        Car bestCar = null;
+        for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
+            if (item.getCar() != null && item.getCar().getSeats() > maxSeats) {
+                maxSeats = item.getCar().getSeats();
+                bestCar = item.getCar();
+            }
+        }
+        if (bestCar == null) return aiResult;
+
+        int carsNeeded = (int) Math.ceil((double) requiredSeats / maxSeats);
+        String suggestion = String.format(
+                "当前最大车型为%s%s（%d座），%d人无法用一辆车坐下。建议租%d辆%s，共%d座可满足需求。",
+                bestCar.getBrand(), bestCar.getModel(), maxSeats,
+                requiredSeats, carsNeeded, bestCar.getBrand() + bestCar.getModel(),
+                carsNeeded * maxSeats);
+
+        // 只推荐最优的那辆车，提示多租
+        List<AIRecommendResult.RecommendItem> suggestionList = new ArrayList<>();
+        AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+        item.setCar(bestCar);
+        item.setReason(String.format("最大空间车型，建议租%d辆来满足%d人需求", carsNeeded, requiredSeats));
+        item.setMatchScore("推荐组合");
+        suggestionList.add(item);
+        aiResult.setRecommendations(suggestionList);
+        aiResult.setSummary(suggestion);
         return aiResult;
     }
 
@@ -257,11 +286,9 @@ public class AIService {
             }
         }
 
-        // 如果过滤后没有车，放宽条件
-        boolean seatLimited = false;
+        // 如果过滤后没有车 → 建议租多辆
         if (filtered.isEmpty()) {
-            filtered = new ArrayList<>(cars);
-            seatLimited = true;
+            return buildMultiCarSuggestion(cars, requiredSeats, req);
         }
 
         List<Car> scored = new ArrayList<>(filtered);
@@ -285,14 +312,34 @@ public class AIService {
             items.add(item);
         }
 
-        String summary;
-        if (seatLimited) {
-            summary = String.format("抱歉，没有找到%d座及以上的车辆，为您推荐 %d 辆现有车型", reqSeats, items.size());
-        } else {
-            summary = String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", filtered.size(), items.size());
-        }
-        result.setSummary(summary);
+        result.setSummary(String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", filtered.size(), items.size()));
         result.setRecommendations(items);
+        return result;
+    }
+
+    /**
+     * 人数超出所有车辆座位数时，建议租多辆车组合
+     */
+    private AIRecommendResult buildMultiCarSuggestion(List<Car> cars, int requiredSeats, String req) {
+        AIRecommendResult result = new AIRecommendResult();
+        // 找最大座位数的车
+        Car bestCar = cars.get(0);
+        for (Car c : cars) {
+            if (c.getSeats() > bestCar.getSeats()) bestCar = c;
+        }
+        int carsNeeded = (int) Math.ceil((double) requiredSeats / bestCar.getSeats());
+
+        AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+        item.setCar(bestCar);
+        item.setReason(String.format("最大空间车型（%d座），建议租%d辆满足%d人需求", bestCar.getSeats(), carsNeeded, requiredSeats));
+        item.setMatchScore("推荐组合");
+
+        result.setSummary(String.format(
+                "当前无%d座以上车辆，最大为%s%s（%d座）。建议租%d辆%s%s，共%d座满足%d人出行。",
+                requiredSeats, bestCar.getBrand(), bestCar.getModel(), bestCar.getSeats(),
+                carsNeeded, bestCar.getBrand(), bestCar.getModel(),
+                carsNeeded * bestCar.getSeats(), requiredSeats));
+        result.setRecommendations(List.of(item));
         return result;
     }
 
