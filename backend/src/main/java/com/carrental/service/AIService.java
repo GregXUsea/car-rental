@@ -69,13 +69,16 @@ public class AIService {
         String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
                 "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
                 "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
-                "最多推荐3辆车，按匹配度从高到低排序。只返回JSON，不要其他文字。";
+                "重要规则：如果用户提到人数（如6人），绝对不能推荐座位数少于该人数的车辆（如5座车）。最多推荐3辆车，按匹配度从高到低排序。只返回JSON，不要其他文字。";
 
         String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
 
         try {
             String response = callSpark(systemPrompt, userPrompt);
-            return parseRecommendResult(response, availableCars);
+            AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
+            // 硬过滤：AI可能忽略座位数限制，再次过滤
+            aiResult = filterBySeats(aiResult, userRequirement);
+            return aiResult;
         } catch (Exception e) {
             return localResult;
         }
@@ -190,6 +193,29 @@ public class AIService {
         } catch (Exception e) {
             return fallbackRecommend("", availableCars);
         }
+    }
+
+    /**
+     * 硬过滤：AI可能忽略座位限制，将不满足座位数的推荐剔除
+     */
+    private AIRecommendResult filterBySeats(AIRecommendResult aiResult, String requirement) {
+        int requiredSeats = getRequiredSeats(requirement);
+        if (requiredSeats <= 0 || aiResult.getRecommendations() == null) {
+            return aiResult;
+        }
+        List<AIRecommendResult.RecommendItem> filtered = new ArrayList<>();
+        for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
+            if (item.getCar() != null && item.getCar().getSeats() >= requiredSeats) {
+                filtered.add(item);
+            }
+        }
+        // 如果全部被过滤，保留原结果并加提示
+        if (filtered.isEmpty()) {
+            aiResult.setSummary(aiResult.getSummary() + "（注意：当前无" + requiredSeats + "座以上车辆，建议放宽条件）");
+            return aiResult;
+        }
+        aiResult.setRecommendations(filtered);
+        return aiResult;
     }
 
     /**
