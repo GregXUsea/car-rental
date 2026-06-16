@@ -293,77 +293,87 @@ public class AIService {
     }
 
     /**
-     * 人数超出所有车辆座位数时，计算最优多车组合方案（按总价最低优先）
+     * 人数超出所有车辆座位数时，展示所有可行组合方案，标注最经济的
      */
     private AIRecommendResult buildMultiCarSuggestion(List<Car> cars, int requiredSeats, String req) {
         AIRecommendResult result = new AIRecommendResult();
-
-        // 方案1：同款车多辆 → 找总价最低的
-        Car bestSingle = null;
-        int bestSingleCount = 0;
-        double bestSingleCost = Double.MAX_VALUE;
-
-        for (Car car : cars) {
-            int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
-            double totalCost = car.getPricePerDay().doubleValue() * count;
-            if (totalCost < bestSingleCost) {
-                bestSingleCost = totalCost;
-                bestSingle = car;
-                bestSingleCount = count;
-            }
-        }
-
-        // 方案2：混合组合 → 大车+小车搭配，看能否更省
-        Car cheap = cars.stream().min((a, b) -> Double.compare(
-                a.getPricePerDay().doubleValue(), b.getPricePerDay().doubleValue())).orElse(bestSingle);
-        Car spacious = cars.stream().max((a, b) -> Integer.compare(
-                a.getSeats(), b.getSeats())).orElse(bestSingle);
-
-        // 组合：1辆大车 + N辆便宜小车
-        int remaining = requiredSeats - spacious.getSeats();
-        int smallCount = remaining > 0 ? (int) Math.ceil((double) remaining / cheap.getSeats()) : 0;
-        double mixedCost = spacious.getPricePerDay().doubleValue() + cheap.getPricePerDay().doubleValue() * smallCount;
-        int mixedSeats = spacious.getSeats() + cheap.getSeats() * smallCount;
-
-        // 选最优方案
-        StringBuilder summary = new StringBuilder();
         List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
 
-        if (mixedCost < bestSingleCost && smallCount > 0 && smallCount < bestSingleCount) {
-            // 混合方案更优
-            summary.append(String.format("当前无%d座车，推荐混合方案：1辆%s%s（%d座）+ %d辆%s%s（%d座），共%d座，总价约¥%.0f/天。",
-                    requiredSeats,
-                    spacious.getBrand(), spacious.getModel(), spacious.getSeats(),
-                    smallCount, cheap.getBrand(), cheap.getModel(), cheap.getSeats(),
-                    mixedSeats, mixedCost));
+        // 同款车多辆方案
+        List<Car> sortedByCost = new ArrayList<>(cars);
+        sortedByCost.sort((a, b) -> {
+            double costA = a.getPricePerDay().doubleValue() * Math.ceil((double) requiredSeats / a.getSeats());
+            double costB = b.getPricePerDay().doubleValue() * Math.ceil((double) requiredSeats / b.getSeats());
+            return Double.compare(costA, costB);
+        });
 
-            AIRecommendResult.RecommendItem item1 = new AIRecommendResult.RecommendItem();
-            item1.setCar(spacious);
-            item1.setReason(String.format("主力车型%d座，搭配小车降低成本", spacious.getSeats()));
-            item1.setMatchScore("推荐组合");
-            items.add(item1);
-
-            AIRecommendResult.RecommendItem item2 = new AIRecommendResult.RecommendItem();
-            item2.setCar(cheap);
-            item2.setReason(String.format("经济补充，%d辆满足剩余%d人", smallCount, remaining));
-            item2.setMatchScore("经济搭配");
-            items.add(item2);
-        } else {
-            // 同款多辆更优
-            summary.append(String.format("当前无%d座车，推荐%d辆%s%s（%d座×%d=%d座），总价约¥%.0f/天，是满足需求的最经济方案。",
-                    requiredSeats, bestSingleCount,
-                    bestSingle.getBrand(), bestSingle.getModel(), bestSingle.getSeats(), bestSingleCount,
-                    bestSingleCount * bestSingle.getSeats(), bestSingleCost));
+        double cheapestCost = Double.MAX_VALUE;
+        for (Car car : sortedByCost) {
+            int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
+            double totalCost = car.getPricePerDay().doubleValue() * count;
+            if (totalCost < cheapestCost) cheapestCost = totalCost;
 
             AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-            item.setCar(bestSingle);
-            item.setReason(String.format("最经济方案：%d辆满足%d人，总价¥%.0f/天", bestSingleCount, requiredSeats, bestSingleCost));
-            item.setMatchScore("最经济组合");
+            item.setCar(car);
+            item.setReason(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天",
+                    count, car.getBrand(), car.getModel(), car.getSeats(), count,
+                    count * car.getSeats(), totalCost));
+            item.setMatchScore(String.format("¥%.0f/天", totalCost));
             items.add(item);
         }
 
-        result.setSummary(summary.toString());
-        result.setRecommendations(items);
+        // 混合方案：最大空间车 + 最便宜车补充
+        Car mostSpacious = cars.stream().max((a, b) -> Integer.compare(a.getSeats(), b.getSeats())).orElse(null);
+        Car cheapest = sortedByCost.get(0);
+        if (mostSpacious != null && cheapest != null && mostSpacious.getSeats() > cheapest.getSeats()) {
+            int remaining = requiredSeats - mostSpacious.getSeats();
+            if (remaining > 0) {
+                int smallCount = (int) Math.ceil((double) remaining / cheapest.getSeats());
+                double mixedCost = mostSpacious.getPricePerDay().doubleValue()
+                        + cheapest.getPricePerDay().doubleValue() * smallCount;
+                int mixedSeats = mostSpacious.getSeats() + cheapest.getSeats() * smallCount;
+
+                AIRecommendResult.RecommendItem mixedItem = new AIRecommendResult.RecommendItem();
+                // 用大车作为主推荐项
+                mixedItem.setCar(mostSpacious);
+                mixedItem.setReason(String.format("1辆%s%s（%d座）+ %d辆%s%s（%d座）=%d座，总价¥%.0f/天",
+                        mostSpacious.getBrand(), mostSpacious.getModel(), mostSpacious.getSeats(),
+                        smallCount, cheapest.getBrand(), cheapest.getModel(), cheapest.getSeats(),
+                        mixedSeats, mixedCost));
+                mixedItem.setMatchScore(String.format("¥%.0f/天", mixedCost));
+                items.add(mixedItem);
+
+                if (mixedCost < cheapestCost) cheapestCost = mixedCost;
+            }
+        }
+
+        // 按总价排序，标记最划算
+        items.sort((a, b) -> {
+            double priceA = Double.parseDouble(a.getMatchScore().replace("¥", "").replace("/天", ""));
+            double priceB = Double.parseDouble(b.getMatchScore().replace("¥", "").replace("/天", ""));
+            return Double.compare(priceA, priceB);
+        });
+
+        // 去重，最多5个方案
+        List<AIRecommendResult.RecommendItem> deduped = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (AIRecommendResult.RecommendItem item : items) {
+            String key = item.getCar().getBrand() + item.getCar().getModel() + item.getMatchScore();
+            if (!seen.contains(key) && deduped.size() < 5) {
+                seen.add(key);
+                deduped.add(item);
+            }
+        }
+
+        // 最便宜的标💡
+        if (!deduped.isEmpty()) {
+            AIRecommendResult.RecommendItem best = deduped.get(0);
+            best.setReason("[最划算] " + best.getReason());
+            best.setMatchScore(best.getMatchScore() + " 💡最划算");
+        }
+
+        result.setSummary(String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, deduped.size()));
+        result.setRecommendations(deduped);
         return result;
     }
 
