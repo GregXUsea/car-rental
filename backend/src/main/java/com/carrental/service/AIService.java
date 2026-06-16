@@ -66,18 +66,24 @@ public class AIService {
                     car.getMileage(), car.getDescription()));
         }
 
-        String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
-                "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
-                "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
-                "铁规：1)用户提到人数时，绝不推荐座位数不够的车 2)如果所有车都坐不下，建议租多辆车组合，不要硬推不够座位的车 3)宁缺毋滥，只推荐真正合适的车。按匹配度从高到低排序。只返回JSON，不要其他文字。";
+        String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会用自然语言描述用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
+                "你必须从用户需求中自动识别所有约束条件并严格遵守：\n" +
+                "- 人数/座位：如提到6人则绝不能推荐5座车\n" +
+                "- 预算：如提到\"预算500元/天\"，单辆车的日租金不得超过该预算\n" +
+                "- 用途：如\"商务接待\"优先豪华/MPV，\"家庭出游\"优先空间大舒适性高的\n" +
+                "- 如果所有车都坐不下，建议租多辆车组合并说明总价\n" +
+                "请用中文回答，以JSON格式返回：\n" +
+                "{\"summary\":\"总体推荐理由（提及是否满足预算）\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
+                "宁缺毋滥，只推荐真正合适的车。按匹配度从高到低排序。只返回JSON，不要其他文字。";
 
-        String userPrompt = String.format("我的需求：%s\n\n可用车辆列表（注意座位数和状态）：\n%s", userRequirement, carListStr);
+        String userPrompt = String.format("用户需求：%s\n\n可用车辆（含日租金）：\n%s", userRequirement, carListStr);
 
         try {
             String response = callSpark(systemPrompt, userPrompt);
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
-            // 硬过滤：AI可能忽略座位数限制，再次过滤（用全量库存做组合计算）
+            // 兜底过滤：AI可能忽略约束，座位+预算双重校验
             aiResult = filterBySeats(aiResult, userRequirement, availableCars);
+            aiResult = filterByBudget(aiResult, userRequirement);
             aiResult.setPoweredBy("AI");
             return aiResult;
         } catch (Exception e) {
@@ -222,6 +228,34 @@ public class AIService {
 
         // 所有车都坐不下 → 用全量库存计算最优多车组合
         return buildMultiCarSuggestion(allAvailableCars, requiredSeats, requirement);
+    }
+
+    /**
+     * 兜底预算过滤：AI可能忽略预算，将超预算的推荐剔除或标记
+     */
+    private AIRecommendResult filterByBudget(AIRecommendResult aiResult, String requirement) {
+        int budget = getBudget(requirement);
+        if (budget <= 0 || aiResult.getRecommendations() == null) {
+            return aiResult;
+        }
+        List<AIRecommendResult.RecommendItem> within = new ArrayList<>();
+        List<AIRecommendResult.RecommendItem> over = new ArrayList<>();
+        for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
+            if (item.getCar() != null && item.getCar().getPricePerDay().doubleValue() <= budget) {
+                within.add(item);
+            } else if (item.getCar() != null) {
+                item.setReason(item.getReason() + " [超预算]");
+                over.add(item);
+            }
+        }
+        if (!within.isEmpty()) {
+            aiResult.setRecommendations(within);
+            aiResult.setSummary(aiResult.getSummary() + String.format("（已过滤%d个超预算方案）", over.size()));
+        } else if (!over.isEmpty()) {
+            aiResult.setRecommendations(over);
+            aiResult.setSummary(String.format("预算¥%d/天以内无合适车型，以下为最接近的方案（均超预算）：", budget));
+        }
+        return aiResult;
     }
 
     /**
