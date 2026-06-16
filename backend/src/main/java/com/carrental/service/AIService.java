@@ -81,9 +81,7 @@ public class AIService {
         try {
             String response = callSpark(systemPrompt, userPrompt);
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
-            // 兜底过滤：AI可能忽略约束，座位+预算双重校验
-            aiResult = filterBySeats(aiResult, userRequirement, availableCars);
-            aiResult = filterByBudget(aiResult, userRequirement);
+            // 所有约束（座位、预算、用途）由AI模型自行理解和过滤
             aiResult.setPoweredBy("AI");
             return aiResult;
         } catch (Exception e) {
@@ -204,62 +202,8 @@ public class AIService {
     }
 
     /**
-     * 硬过滤：AI可能忽略座位限制，将不满足座位数的推荐剔除。
-     * 如果所有车都坐不下，用全量库存计算多车组合方案。
-     */
-    private AIRecommendResult filterBySeats(AIRecommendResult aiResult, String requirement, List<Car> allAvailableCars) {
-        int requiredSeats = getRequiredSeats(requirement);
-        if (requiredSeats <= 0) {
-            return aiResult;
-        }
-        if (aiResult.getRecommendations() == null) {
-            aiResult.setRecommendations(new ArrayList<>());
-        }
-        List<AIRecommendResult.RecommendItem> filtered = new ArrayList<>();
-        for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
-            if (item.getCar() != null && item.getCar().getSeats() >= requiredSeats) {
-                filtered.add(item);
-            }
-        }
-        if (!filtered.isEmpty()) {
-            aiResult.setRecommendations(filtered);
-            return aiResult;
-        }
-
-        // 所有车都坐不下 → 用全量库存计算最优多车组合
-        return buildMultiCarSuggestion(allAvailableCars, requiredSeats, requirement);
-    }
-
-    /**
-     * 兜底预算过滤：AI可能忽略预算，将超预算的推荐剔除或标记
-     */
-    private AIRecommendResult filterByBudget(AIRecommendResult aiResult, String requirement) {
-        int budget = getBudget(requirement);
-        if (budget <= 0 || aiResult.getRecommendations() == null) {
-            return aiResult;
-        }
-        List<AIRecommendResult.RecommendItem> within = new ArrayList<>();
-        List<AIRecommendResult.RecommendItem> over = new ArrayList<>();
-        for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
-            if (item.getCar() != null && item.getCar().getPricePerDay().doubleValue() <= budget) {
-                within.add(item);
-            } else if (item.getCar() != null) {
-                item.setReason(item.getReason() + " [超预算]");
-                over.add(item);
-            }
-        }
-        if (!within.isEmpty()) {
-            aiResult.setRecommendations(within);
-            aiResult.setSummary(aiResult.getSummary() + String.format("（已过滤%d个超预算方案）", over.size()));
-        } else if (!over.isEmpty()) {
-            aiResult.setRecommendations(over);
-            aiResult.setSummary(String.format("预算¥%d/天以内无合适车型，以下为最接近的方案（均超预算）：", budget));
-        }
-        return aiResult;
-    }
-
-    /**
      * 从需求中提取所需座位数，返回0表示未明确指定
+     * 仅用于本地兜底逻辑，AI路径由模型自行理解
      */
     private int getRequiredSeats(String req) {
         // 数字 + 人/个/口/座
