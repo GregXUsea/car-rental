@@ -192,16 +192,57 @@ public class AIService {
         }
     }
 
+    /**
+     * 从需求中提取所需座位数，返回0表示未明确指定
+     */
+    private int getRequiredSeats(String req) {
+        // 数字 + 人/个/口/座
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("(\\d+)\\s*[人个口座]");
+        java.util.regex.Matcher m = p.matcher(req);
+        if (m.find()) {
+            return Integer.parseInt(m.group(1));
+        }
+        // 中文数字
+        if (req.contains("七人") || req.contains("七口") || req.contains("七座")) return 7;
+        if (req.contains("六人") || req.contains("六口") || req.contains("六座") || req.contains("大家庭")) return 6;
+        if (req.contains("五人") || req.contains("五口") || req.contains("五座")) return 5;
+        if (req.contains("四人") || req.contains("四口") || req.contains("四座")) return 4;
+        if (req.contains("三人") || req.contains("三口") || req.contains("三座")) return 3;
+        if (req.contains("两人") || req.contains("两口") || req.contains("两座")) return 2;
+        if (req.contains("一人") || req.contains("单")) return 1;
+        // "多人"按6人处理
+        if (req.contains("多人") || req.contains("一家人") || req.contains("全家")) return 6;
+        return 0;
+    }
+
     private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars) {
         AIRecommendResult result = new AIRecommendResult();
 
         String req = requirement.toLowerCase();
-        List<Car> scored = new ArrayList<>(cars);
+        int requiredSeats = getRequiredSeats(req);
+
+        // 先按座位数硬过滤：需求人数超过座位数直接排除
+        List<Car> filtered = new ArrayList<>();
+        for (Car car : cars) {
+            if (requiredSeats <= 0 || car.getSeats() >= requiredSeats) {
+                filtered.add(car);
+            }
+        }
+
+        // 如果过滤后没有车，放宽条件
+        boolean seatLimited = false;
+        if (filtered.isEmpty()) {
+            filtered = new ArrayList<>(cars);
+            seatLimited = true;
+        }
+
+        List<Car> scored = new ArrayList<>(filtered);
 
         // 根据关键词给车辆打分排序
+        final int reqSeats = requiredSeats;
         scored.sort((a, b) -> {
-            int scoreA = calcMatchScore(a, req);
-            int scoreB = calcMatchScore(b, req);
+            int scoreA = calcMatchScore(a, req, reqSeats);
+            int scoreB = calcMatchScore(b, req, reqSeats);
             return scoreB - scoreA;
         });
 
@@ -212,18 +253,33 @@ public class AIService {
             AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
             item.setCar(car);
             item.setReason(buildReason(car, req));
-            item.setMatchScore(calcMatchScore(car, req) + "%");
+            item.setMatchScore(calcMatchScore(car, req, reqSeats) + "%");
             items.add(item);
         }
 
-        result.setSummary(String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", cars.size(), items.size()));
+        String summary;
+        if (seatLimited) {
+            summary = String.format("抱歉，没有找到%d座及以上的车辆，为您推荐 %d 辆现有车型", reqSeats, items.size());
+        } else {
+            summary = String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", filtered.size(), items.size());
+        }
+        result.setSummary(summary);
         result.setRecommendations(items);
         return result;
     }
 
-    private int calcMatchScore(Car car, String req) {
+    private int calcMatchScore(Car car, String req, int requiredSeats) {
         int score = 50; // 基础分
-        String info = (car.getBrand() + " " + car.getModel() + " " + car.getCategory() + " " + car.getDescription()).toLowerCase();
+
+        // 座位数匹配（改为核心权重）
+        if (requiredSeats > 0) {
+            if (car.getSeats() >= requiredSeats + 1) {
+                score += 35; // 超出需求，空间更大
+            } else if (car.getSeats() >= requiredSeats) {
+                score += 30; // 刚好满足
+            }
+            // 不满足的已被过滤，不会到这里
+        }
 
         // 价格匹配
         if (req.contains("便宜") || req.contains("经济") || req.contains("省钱") || req.contains("低端")) {
@@ -238,19 +294,11 @@ public class AIService {
             if (car.getPricePerDay().doubleValue() >= 450) score += 35;
         }
 
-        // 人数匹配
-        if (req.contains("6人") || req.contains("6个") || req.contains("六人") || req.contains("大家庭")) {
-            if (car.getSeats() >= 6) score += 25;
-        }
-        if (req.contains("7人") || req.contains("7个") || req.contains("七人") || req.contains("多人")) {
-            if (car.getSeats() >= 7) score += 30;
-        }
-
         // 类型匹配
         if ((req.contains("suv") || req.contains("越野")) && "SUV".equals(car.getCategory())) score += 20;
         if ((req.contains("商务") || req.contains("接待")) && "MPV".equals(car.getCategory())) score += 20;
         if ((req.contains("电车") || req.contains("纯电") || req.contains("新能源")) && "新能源".equals(car.getCategory())) score += 20;
-        if ((req.contains("轿车") || req.contains("通勤")) && "中低端".equals(car.getCategory())) score += 15;
+        if ((req.contains("轿车") || req.contains("通勤")) && "轿车".equals(car.getCategory())) score += 15;
 
         // 品牌关键词匹配
         String brandLower = car.getBrand().toLowerCase();
