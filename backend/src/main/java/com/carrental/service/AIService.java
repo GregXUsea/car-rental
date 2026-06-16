@@ -21,13 +21,16 @@ import java.util.stream.Collectors;
 @Service
 public class AIService {
 
-    @Value("${kimi.api-key}")
+    @Value("${spark.api-key}")
     private String apiKey;
 
-    @Value("${kimi.base-url}")
+    @Value("${spark.api-secret}")
+    private String apiSecret;
+
+    @Value("${spark.base-url}")
     private String baseUrl;
 
-    @Value("${kimi.model}")
+    @Value("${spark.model}")
     private String model;
 
     @Autowired
@@ -49,7 +52,7 @@ public class AIService {
         AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
 
         // 如果 API key 未配置，使用本地关键词匹配兜底
-        if (apiKey == null || apiKey.equals("your-kimi-api-key-here") || apiKey.isBlank()) {
+        if (apiKey == null || apiKey.equals("your-spark-api-key-here") || apiKey.isBlank()) {
             return localResult;
         }
 
@@ -70,7 +73,7 @@ public class AIService {
         String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
 
         try {
-            String response = callKimi(systemPrompt, userPrompt);
+            String response = callSpark(systemPrompt, userPrompt);
             return parseRecommendResult(response, availableCars);
         } catch (Exception e) {
             return localResult;
@@ -106,7 +109,7 @@ public class AIService {
                 car.getLastMaintainDate(), recordStr);
 
         try {
-            String response = callKimi(systemPrompt, userPrompt);
+            String response = callSpark(systemPrompt, userPrompt);
             return objectMapper.readValue(response, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             Map<String, Object> fallback = new HashMap<>();
@@ -118,7 +121,7 @@ public class AIService {
         }
     }
 
-    private String callKimi(String systemPrompt, String userPrompt) throws IOException {
+    private String callSpark(String systemPrompt, String userPrompt) throws IOException {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", model);
         requestBody.put("messages", List.of(
@@ -131,7 +134,7 @@ public class AIService {
 
         Request request = new Request.Builder()
                 .url(baseUrl + "/chat/completions")
-                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey + ":" + apiSecret)
                 .addHeader("Content-Type", "application/json")
                 .post(RequestBody.create(json, MediaType.parse("application/json")))
                 .build();

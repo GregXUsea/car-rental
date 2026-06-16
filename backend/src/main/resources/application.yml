@@ -24,10 +24,11 @@ jwt:
   secret: CarRentalSystemSecretKey2026VeryLongSecretKeyForHS256Algorithm
   expiration: 86400000
 
-kimi:
-  api-key: ${KIMI_API_KEY:sk-wHuVbUHLLNn8od6ZbWccOzLR6H3YG0BZAv6l3mLiJB5w5yUu}
-  base-url: ${KIMI_BASE_URL:https://api.moonshot.cn/v1}
-  model: ${KIMI_MODEL:moonshot-v1-8k}
+spark:
+  api-key: ${SPARK_API_KEY:your-spark-api-key-here}
+  api-secret: ${SPARK_API_SECRET:your-spark-api-secret-here}
+  base-url: ${SPARK_BASE_URL:https://spark-api-open.xf-yun.com/v1}
+  model: ${SPARK_MODEL:lite}
 
 logging:
   level:
