@@ -49,11 +49,10 @@ public class AIService {
     public AIRecommendResult recommendCars(String userRequirement) {
         List<Car> availableCars = carService.listAvailable();
 
-        // 先用本地关键词匹配
-        AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
-
-        // 如果 API key 未配置，使用本地关键词匹配兜底
+        // 如果 API key 未配置，使用本地关键词匹配
         if (apiKey == null || apiKey.equals("your-spark-api-key-here") || apiKey.isBlank()) {
+            AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
+            localResult.setPoweredBy("本地");
             return localResult;
         }
 
@@ -66,21 +65,61 @@ public class AIService {
                     car.getMileage(), car.getDescription()));
         }
 
-        String systemPrompt = "你是一个汽车租赁顾问。根据用户的需求，从可用车辆中推荐最合适的车型。\n" +
-                "注意：用户提到的人数对应所需座位数，这是物理硬约束，不能推荐座位数不足的车。\n" +
-                "如果所有车都坐不下，建议租多辆车组合。\n" +
-                "用JSON格式返回：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}]}\n" +
-                "只返回JSON，不要其他内容。";
+        String systemPrompt = "你是汽车租赁顾问。根据用户需求从可用车辆中推荐车型。\n" +
+                "\n" +
+                "规则：\n" +
+                "1. 用户说「N人」就需要N个座位，单车不够就从「可选组合」中推荐多车方案。\n" +
+                "2. 用户说「X以内」「不超过X」「X元/天」「预算X」都是总价上限，只推荐总价≤预算的组合。\n" +
+                "3. 从「可选组合」中选总价≤预算的，按总价从低到高排列，推荐前5个最经济的。\n" +
+                "4. 如果没有预算内的方案，才推荐超预算方案并说明超了多少。\n" +
+                "5. reason必须写明：几辆什么车、总座位数、总价（元/天）。\n" +
+                "\n" +
+                "返回纯JSON：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}]}";
 
-        String userPrompt = String.format("用户需求：%s\n\n可用车辆（含日租金）：\n%s", userRequirement, carListStr);
+        // 若无人车能容纳 → 预计算所有可行2车组合，补到prompt中，AI负责筛选排序
+        String userPrompt = String.format("用户需求：%s\n\n可用车辆：\n%s", userRequirement, carListStr);
+        int requiredSeats = getRequiredSeats(userRequirement);
+        int maxSeats = availableCars.stream().mapToInt(Car::getSeats).max().orElse(0);
+        if (requiredSeats > maxSeats) {
+            StringBuilder combos = new StringBuilder("\n可选2车组合（总座位≥" + requiredSeats + "人，已算总价）：\n");
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            int idx = 1;
+            for (int i = 0; i < availableCars.size(); i++) {
+                for (int j = i; j < availableCars.size(); j++) {
+                    Car a = availableCars.get(i), b = availableCars.get(j);
+                    int totalSeats;
+                    double totalPrice;
+                    String desc;
+                    if (i == j) {
+                        int count = (int) Math.ceil((double) requiredSeats / a.getSeats());
+                        if (count > 3) continue; // 超过3辆不推荐
+                        totalSeats = a.getSeats() * count;
+                        totalPrice = a.getPricePerDay().doubleValue() * count;
+                        desc = String.format("%d辆 %s %s", count, a.getBrand(), a.getModel());
+                    } else {
+                        if (a.getSeats() + b.getSeats() < requiredSeats) continue;
+                        totalSeats = a.getSeats() + b.getSeats();
+                        totalPrice = a.getPricePerDay().doubleValue() + b.getPricePerDay().doubleValue();
+                        desc = String.format("1辆 %s %s + 1辆 %s %s",
+                                a.getBrand(), a.getModel(), b.getBrand(), b.getModel());
+                    }
+                    String key = desc.replaceAll("\\d+辆 ", "");
+                    if (seen.add(key)) {
+                        combos.append(String.format("[%d] %s → %d座 ¥%.0f/天\n",
+                                idx++, desc, totalSeats, totalPrice));
+                    }
+                }
+            }
+            userPrompt += combos.toString();
+        }
 
         try {
             String response = callSpark(systemPrompt, userPrompt);
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
-            // 所有约束（座位、预算、用途）由AI模型自行理解和过滤
             aiResult.setPoweredBy("AI");
             return aiResult;
         } catch (Exception e) {
+            AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
             localResult.setPoweredBy("本地");
             return localResult;
         }
@@ -133,9 +172,9 @@ public class AIService {
         requestBody.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)));
-        requestBody.put("temperature", 0.7);
-        requestBody.put("max_tokens", 3000);
-        // 关闭深度思考，节省token
+        requestBody.put("temperature", 0.3);
+        requestBody.put("max_tokens", 8000);
+        // 关闭深度思考
         requestBody.put("thinking", Map.of("type", "disabled"));
 
         String json = objectMapper.writeValueAsString(requestBody);
@@ -270,129 +309,129 @@ public class AIService {
      * 从需求中提取预算金额，返回0表示未指定
      */
     private int getBudget(String req) {
-        java.util.regex.Pattern p = java.util.regex.Pattern.compile("预算\\s*(\\d+)");
-        java.util.regex.Matcher m = p.matcher(req);
+        java.util.regex.Pattern p;
+        java.util.regex.Matcher m;
+        // "预算500"、"预算 500"
+        p = java.util.regex.Pattern.compile("预算\\s*(\\d+)");
+        m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
-        p = java.util.regex.Pattern.compile("(\\d+)\\s*元/天");
+        // "500元/天"、"500/天"
+        p = java.util.regex.Pattern.compile("(\\d+)\\s*元?/天");
+        m = p.matcher(req);
+        if (m.find()) return Integer.parseInt(m.group(1));
+        // "500以内"、"500以下"、"不超过500"、"500之内"
+        p = java.util.regex.Pattern.compile("(?:不超过|不大于|不高于)\\s*(\\d+)");
+        m = p.matcher(req);
+        if (m.find()) return Integer.parseInt(m.group(1));
+        p = java.util.regex.Pattern.compile("(\\d+)\\s*(?:以内|以下|之内)");
+        m = p.matcher(req);
+        if (m.find()) return Integer.parseInt(m.group(1));
+        // "500左右" — 按上限取，略微宽松
+        p = java.util.regex.Pattern.compile("(\\d+)\\s*左右");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
         return 0;
     }
 
     /**
-     * 人数超出所有车辆座位数时，展示所有可行组合方案，标注最经济的，过滤超预算的
+     * 人数超出所有车辆座位数时，枚举所有可行组合方案（同款×N + 异款配对），按总价排序，过滤超预算
      */
     private AIRecommendResult buildMultiCarSuggestion(List<Car> cars, int requiredSeats, String req) {
         AIRecommendResult result = new AIRecommendResult();
-        List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
         int budget = getBudget(req);
+        List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
 
-        // 同款车多辆方案
-        List<Car> sortedByCost = new ArrayList<>(cars);
-        sortedByCost.sort((a, b) -> {
-            double costA = a.getPricePerDay().doubleValue() * Math.ceil((double) requiredSeats / a.getSeats());
-            double costB = b.getPricePerDay().doubleValue() * Math.ceil((double) requiredSeats / b.getSeats());
-            return Double.compare(costA, costB);
-        });
-
-        for (Car car : sortedByCost) {
+        // 1. 同款车 × N
+        for (Car car : cars) {
             int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
             double totalCost = car.getPricePerDay().doubleValue() * count;
-
-            String tag = "";
-            if (budget > 0 && totalCost > budget) tag = " [超预算]";
-
-            AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-            item.setCar(car);
-            item.setReason(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天%s",
-                    count, car.getBrand(), car.getModel(), car.getSeats(), count,
-                    count * car.getSeats(), totalCost, tag));
-            item.setMatchScore(String.format("¥%.0f/天", totalCost));
-            items.add(item);
-        }
-
-        // 混合方案：最大空间车 + 最便宜车补充
-        Car mostSpacious = cars.stream().max((a, b) -> Integer.compare(a.getSeats(), b.getSeats())).orElse(null);
-        Car cheapest = sortedByCost.get(0);
-        if (mostSpacious != null && cheapest != null && mostSpacious.getSeats() > cheapest.getSeats()) {
-            int remaining = requiredSeats - mostSpacious.getSeats();
-            if (remaining > 0) {
-                int smallCount = (int) Math.ceil((double) remaining / cheapest.getSeats());
-                double mixedCost = mostSpacious.getPricePerDay().doubleValue()
-                        + cheapest.getPricePerDay().doubleValue() * smallCount;
-                int mixedSeats = mostSpacious.getSeats() + cheapest.getSeats() * smallCount;
-
-                String tag = (budget > 0 && mixedCost > budget) ? " [超预算]" : "";
-
-                AIRecommendResult.RecommendItem mixedItem = new AIRecommendResult.RecommendItem();
-                mixedItem.setCar(mostSpacious);
-                mixedItem.setReason(String.format("1辆%s%s（%d座）+ %d辆%s%s（%d座）=%d座，总价¥%.0f/天%s",
-                        mostSpacious.getBrand(), mostSpacious.getModel(), mostSpacious.getSeats(),
-                        smallCount, cheapest.getBrand(), cheapest.getModel(), cheapest.getSeats(),
-                        mixedSeats, mixedCost, tag));
-                mixedItem.setMatchScore(String.format("¥%.0f/天", mixedCost));
-                items.add(mixedItem);
+            String key = count + "x" + car.getId();
+            if (seen.add(key) && count <= 3) { // 最多3辆同款
+                items.add(buildComboItem(car, null, count, 0, totalCost, budget));
             }
         }
 
-        // 按总价排序
-        items.sort((a, b) -> {
-            double priceA = Double.parseDouble(a.getMatchScore().replace("¥", "").replace("/天", ""));
-            double priceB = Double.parseDouble(b.getMatchScore().replace("¥", "").replace("/天", ""));
-            return Double.compare(priceA, priceB);
-        });
-
-        // 分离预算内和超预算
-        List<AIRecommendResult.RecommendItem> withinBudget = new ArrayList<>();
-        List<AIRecommendResult.RecommendItem> overBudget = new ArrayList<>();
-        for (AIRecommendResult.RecommendItem item : items) {
-            double price = Double.parseDouble(item.getMatchScore().replace("¥", "").replace("/天", ""));
-            if (budget > 0 && price > budget) {
-                overBudget.add(item);
-            } else {
-                withinBudget.add(item);
-            }
-        }
-
-        // 预算内方案（去重，最多5个）
-        List<AIRecommendResult.RecommendItem> deduped = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        for (AIRecommendResult.RecommendItem item : withinBudget) {
-            String key = item.getCar().getBrand() + item.getCar().getModel() + item.getMatchScore();
-            if (!seen.contains(key) && deduped.size() < 5) {
-                seen.add(key);
-                deduped.add(item);
-            }
-        }
-        // 如果预算内没方案，把超预算的也列出来但标注警告
-        if (deduped.isEmpty() && budget > 0) {
-            for (AIRecommendResult.RecommendItem item : overBudget) {
-                String key = item.getCar().getBrand() + item.getCar().getModel() + item.getMatchScore();
-                if (!seen.contains(key) && deduped.size() < 5) {
-                    seen.add(key);
-                    deduped.add(item);
+        // 2. 异款配对：1辆A + 1辆B（覆盖大多数多人场景）
+        for (int i = 0; i < cars.size(); i++) {
+            for (int j = i + 1; j < cars.size(); j++) {
+                Car a = cars.get(i), b = cars.get(j);
+                if (a.getSeats() + b.getSeats() >= requiredSeats) {
+                    double totalCost = a.getPricePerDay().doubleValue() + b.getPricePerDay().doubleValue();
+                    String key = "1x" + a.getId() + "+1x" + b.getId();
+                    if (seen.add(key)) {
+                        items.add(buildComboItem(a, b, 1, 1, totalCost, budget));
+                    }
                 }
             }
         }
 
-        // 最便宜的标[最划算]
-        if (!deduped.isEmpty()) {
-            AIRecommendResult.RecommendItem best = deduped.get(0);
+        // 按总价排序
+        items.sort((x, y) -> {
+            double px = Double.parseDouble(x.getMatchScore().replace("¥", "").replace("/天", ""));
+            double py = Double.parseDouble(y.getMatchScore().replace("¥", "").replace("/天", ""));
+            return Double.compare(px, py);
+        });
+
+        // 预算内优先，最多返回5条
+        List<AIRecommendResult.RecommendItem> within = new ArrayList<>();
+        List<AIRecommendResult.RecommendItem> over = new ArrayList<>();
+        for (AIRecommendResult.RecommendItem item : items) {
+            double price = Double.parseDouble(item.getMatchScore().replace("¥", "").replace("/天", ""));
+            if (budget > 0 && price > budget) {
+                if (over.size() < 3) over.add(item);
+            } else {
+                if (within.size() < 5) within.add(item);
+            }
+        }
+        // 无预算内方案则展示超预算的
+        List<AIRecommendResult.RecommendItem> result2 = within.isEmpty() ? over : within;
+        result2.addAll(within.isEmpty() ? within : over);
+
+        // 最便宜标最划算
+        if (!result2.isEmpty()) {
+            AIRecommendResult.RecommendItem best = result2.get(0);
             best.setReason("[最划算] " + best.getReason());
             best.setMatchScore(best.getMatchScore() + " [最划算]");
         }
 
         String summary;
-        if (budget > 0 && withinBudget.isEmpty()) {
-            summary = String.format("当前无%d座车辆，预算¥%d/天以内没有可行方案，以下为最接近的方案（均超预算）：", requiredSeats, budget);
+        if (budget > 0 && within.isEmpty()) {
+            summary = String.format("当前无%d座车辆，预算¥%d/天以内无可行方案，以下为最接近的方案（均超预算）：", requiredSeats, budget);
         } else if (budget > 0) {
-            summary = String.format("当前无%d座车辆，为您列出 %d 种预算内组合方案（预算¥%d/天）：", requiredSeats, deduped.size(), budget);
+            summary = String.format("当前无%d座车辆，为您列出 %d 种预算内组合方案（≤¥%d/天）：", requiredSeats, within.size(), budget);
         } else {
-            summary = String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, deduped.size());
+            summary = String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, result2.size());
         }
         result.setSummary(summary);
-        result.setRecommendations(deduped);
+        result.setRecommendations(result2);
         return result;
+    }
+
+    /** 构建一条组合推荐 */
+    private AIRecommendResult.RecommendItem buildComboItem(Car primary, Car secondary,
+                                                            int countPrimary, int countSecondary,
+                                                            double totalCost, int budget) {
+        AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+        item.setCar(primary);
+        int totalSeats = primary.getSeats() * countPrimary
+                + (secondary != null ? secondary.getSeats() * countSecondary : 0);
+        String tag = (budget > 0 && totalCost > budget) ? " [超预算]" : "";
+
+        StringBuilder reason = new StringBuilder();
+        if (secondary == null) {
+            reason.append(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天%s",
+                    countPrimary, primary.getBrand(), primary.getModel(),
+                    primary.getSeats(), countPrimary, totalSeats, totalCost, tag));
+        } else {
+            reason.append(String.format("1辆%s%s（%d座）+ 1辆%s%s（%d座）=%d座，总价¥%.0f/天%s",
+                    primary.getBrand(), primary.getModel(), primary.getSeats(),
+                    secondary.getBrand(), secondary.getModel(), secondary.getSeats(),
+                    totalSeats, totalCost, tag));
+        }
+        item.setReason(reason.toString());
+        item.setMatchScore(String.format("¥%.0f/天", totalCost));
+        return item;
     }
 
     private int calcMatchScore(Car car, String req, int requiredSeats) {
