@@ -293,11 +293,25 @@ public class AIService {
     }
 
     /**
-     * 人数超出所有车辆座位数时，展示所有可行组合方案，标注最经济的
+     * 从需求中提取预算金额，返回0表示未指定
+     */
+    private int getBudget(String req) {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("预算\\s*(\\d+)");
+        java.util.regex.Matcher m = p.matcher(req);
+        if (m.find()) return Integer.parseInt(m.group(1));
+        p = java.util.regex.Pattern.compile("(\\d+)\\s*元/天");
+        m = p.matcher(req);
+        if (m.find()) return Integer.parseInt(m.group(1));
+        return 0;
+    }
+
+    /**
+     * 人数超出所有车辆座位数时，展示所有可行组合方案，标注最经济的，过滤超预算的
      */
     private AIRecommendResult buildMultiCarSuggestion(List<Car> cars, int requiredSeats, String req) {
         AIRecommendResult result = new AIRecommendResult();
         List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
+        int budget = getBudget(req);
 
         // 同款车多辆方案
         List<Car> sortedByCost = new ArrayList<>(cars);
@@ -307,17 +321,18 @@ public class AIService {
             return Double.compare(costA, costB);
         });
 
-        double cheapestCost = Double.MAX_VALUE;
         for (Car car : sortedByCost) {
             int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
             double totalCost = car.getPricePerDay().doubleValue() * count;
-            if (totalCost < cheapestCost) cheapestCost = totalCost;
+
+            String tag = "";
+            if (budget > 0 && totalCost > budget) tag = " [超预算]";
 
             AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
             item.setCar(car);
-            item.setReason(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天",
+            item.setReason(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天%s",
                     count, car.getBrand(), car.getModel(), car.getSeats(), count,
-                    count * car.getSeats(), totalCost));
+                    count * car.getSeats(), totalCost, tag));
             item.setMatchScore(String.format("¥%.0f/天", totalCost));
             items.add(item);
         }
@@ -333,46 +348,75 @@ public class AIService {
                         + cheapest.getPricePerDay().doubleValue() * smallCount;
                 int mixedSeats = mostSpacious.getSeats() + cheapest.getSeats() * smallCount;
 
+                String tag = (budget > 0 && mixedCost > budget) ? " [超预算]" : "";
+
                 AIRecommendResult.RecommendItem mixedItem = new AIRecommendResult.RecommendItem();
-                // 用大车作为主推荐项
                 mixedItem.setCar(mostSpacious);
-                mixedItem.setReason(String.format("1辆%s%s（%d座）+ %d辆%s%s（%d座）=%d座，总价¥%.0f/天",
+                mixedItem.setReason(String.format("1辆%s%s（%d座）+ %d辆%s%s（%d座）=%d座，总价¥%.0f/天%s",
                         mostSpacious.getBrand(), mostSpacious.getModel(), mostSpacious.getSeats(),
                         smallCount, cheapest.getBrand(), cheapest.getModel(), cheapest.getSeats(),
-                        mixedSeats, mixedCost));
+                        mixedSeats, mixedCost, tag));
                 mixedItem.setMatchScore(String.format("¥%.0f/天", mixedCost));
                 items.add(mixedItem);
-
-                if (mixedCost < cheapestCost) cheapestCost = mixedCost;
             }
         }
 
-        // 按总价排序，标记最划算
+        // 按总价排序
         items.sort((a, b) -> {
             double priceA = Double.parseDouble(a.getMatchScore().replace("¥", "").replace("/天", ""));
             double priceB = Double.parseDouble(b.getMatchScore().replace("¥", "").replace("/天", ""));
             return Double.compare(priceA, priceB);
         });
 
-        // 去重，最多5个方案
+        // 分离预算内和超预算
+        List<AIRecommendResult.RecommendItem> withinBudget = new ArrayList<>();
+        List<AIRecommendResult.RecommendItem> overBudget = new ArrayList<>();
+        for (AIRecommendResult.RecommendItem item : items) {
+            double price = Double.parseDouble(item.getMatchScore().replace("¥", "").replace("/天", ""));
+            if (budget > 0 && price > budget) {
+                overBudget.add(item);
+            } else {
+                withinBudget.add(item);
+            }
+        }
+
+        // 预算内方案（去重，最多5个）
         List<AIRecommendResult.RecommendItem> deduped = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
-        for (AIRecommendResult.RecommendItem item : items) {
+        for (AIRecommendResult.RecommendItem item : withinBudget) {
             String key = item.getCar().getBrand() + item.getCar().getModel() + item.getMatchScore();
             if (!seen.contains(key) && deduped.size() < 5) {
                 seen.add(key);
                 deduped.add(item);
             }
         }
+        // 如果预算内没方案，把超预算的也列出来但标注警告
+        if (deduped.isEmpty() && budget > 0) {
+            for (AIRecommendResult.RecommendItem item : overBudget) {
+                String key = item.getCar().getBrand() + item.getCar().getModel() + item.getMatchScore();
+                if (!seen.contains(key) && deduped.size() < 5) {
+                    seen.add(key);
+                    deduped.add(item);
+                }
+            }
+        }
 
-        // 最便宜的标💡
+        // 最便宜的标[最划算]
         if (!deduped.isEmpty()) {
             AIRecommendResult.RecommendItem best = deduped.get(0);
             best.setReason("[最划算] " + best.getReason());
-            best.setMatchScore(best.getMatchScore() + " 💡最划算");
+            best.setMatchScore(best.getMatchScore() + " [最划算]");
         }
 
-        result.setSummary(String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, deduped.size()));
+        String summary;
+        if (budget > 0 && withinBudget.isEmpty()) {
+            summary = String.format("当前无%d座车辆，预算¥%d/天以内没有可行方案，以下为最接近的方案（均超预算）：", requiredSeats, budget);
+        } else if (budget > 0) {
+            summary = String.format("当前无%d座车辆，为您列出 %d 种预算内组合方案（预算¥%d/天）：", requiredSeats, deduped.size(), budget);
+        } else {
+            summary = String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, deduped.size());
+        }
+        result.setSummary(summary);
         result.setRecommendations(deduped);
         return result;
     }
