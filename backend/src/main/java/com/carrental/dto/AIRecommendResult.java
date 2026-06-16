@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class AIRecommendResult {
     private String summary;
+    private String poweredBy;
     private List<RecommendItem> recommendations;
 
     @Data

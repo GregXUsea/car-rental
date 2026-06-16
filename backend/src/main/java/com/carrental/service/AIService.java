@@ -69,17 +69,19 @@ public class AIService {
         String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。" +
                 "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
                 "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
-                "重要规则：如果用户提到人数（如6人），绝对不能推荐座位数少于该人数的车辆（如5座车）。最多推荐3辆车，按匹配度从高到低排序。只返回JSON，不要其他文字。";
+                "铁规：1)用户提到人数时，绝不推荐座位数不够的车 2)必须推荐满3辆（除非可用车不足3辆），即使匹配度较低也列出来 3)优先推荐座位数满足且价格接近预算的车型。按匹配度从高到低排序。只返回JSON，不要其他文字。";
 
-        String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
+        String userPrompt = String.format("我的需求：%s\n\n可用车辆列表（注意座位数和状态）：\n%s", userRequirement, carListStr);
 
         try {
             String response = callSpark(systemPrompt, userPrompt);
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
             // 硬过滤：AI可能忽略座位数限制，再次过滤
             aiResult = filterBySeats(aiResult, userRequirement);
+            aiResult.setPoweredBy("AI");
             return aiResult;
         } catch (Exception e) {
+            localResult.setPoweredBy("本地");
             return localResult;
         }
     }
@@ -132,7 +134,7 @@ public class AIService {
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.7);
-        requestBody.put("max_tokens", 2000);
+        requestBody.put("max_tokens", 3000);
         // 关闭深度思考，节省token
         requestBody.put("thinking", Map.of("type", "disabled"));
 

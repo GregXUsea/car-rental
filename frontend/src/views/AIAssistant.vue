@@ -25,7 +25,14 @@
         </div>
 
         <div v-if="result" class="result-section">
-          <el-alert :title="result.summary" type="success" :closable="false" show-icon style="margin-bottom: 20px;" />
+          <el-alert type="success" :closable="false" show-icon style="margin-bottom: 20px;">
+            <template #title>
+              {{ result.summary }}
+              <el-tag size="small" :type="result.poweredBy === 'AI' ? '' : 'info'" style="margin-left: 8px;">
+                {{ result.poweredBy === 'AI' ? '🤖 AI推荐' : '📋 本地推荐' }}
+              </el-tag>
+            </template>
+          </el-alert>
 
           <div class="recommend-list">
             <div v-for="(item, index) in result.recommendations" :key="index" class="recommend-card">
