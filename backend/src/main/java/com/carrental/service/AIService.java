@@ -21,13 +21,13 @@ import java.util.stream.Collectors;
 @Service
 public class AIService {
 
-    @Value("${openai.api-key}")
+    @Value("${kimi.api-key}")
     private String apiKey;
 
-    @Value("${openai.base-url}")
+    @Value("${kimi.base-url}")
     private String baseUrl;
 
-    @Value("${openai.model}")
+    @Value("${kimi.model}")
     private String model;
 
     @Autowired
@@ -48,8 +48,8 @@ public class AIService {
         // 先用本地关键词匹配
         AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
 
-        // 如果 API key 未配置或无效，直接返回本地结果
-        if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
+        // 如果 API key 未配置，使用本地关键词匹配兜底
+        if (apiKey == null || apiKey.equals("your-kimi-api-key-here") || apiKey.isBlank()) {
             return localResult;
         }
 
@@ -70,7 +70,7 @@ public class AIService {
         String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
 
         try {
-            String response = callOpenAI(systemPrompt, userPrompt);
+            String response = callKimi(systemPrompt, userPrompt);
             return parseRecommendResult(response, availableCars);
         } catch (Exception e) {
             return localResult;
@@ -106,7 +106,7 @@ public class AIService {
                 car.getLastMaintainDate(), recordStr);
 
         try {
-            String response = callOpenAI(systemPrompt, userPrompt);
+            String response = callKimi(systemPrompt, userPrompt);
             return objectMapper.readValue(response, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             Map<String, Object> fallback = new HashMap<>();
@@ -118,7 +118,7 @@ public class AIService {
         }
     }
 
-    private String callOpenAI(String systemPrompt, String userPrompt) throws IOException {
+    private String callKimi(String systemPrompt, String userPrompt) throws IOException {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", model);
         requestBody.put("messages", List.of(
@@ -138,7 +138,7 @@ public class AIService {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IOException("API call failed: " + response.code());
+                throw new IOException("Kimi API调用失败，状态码: " + response.code());
             }
             String body = response.body().string();
             JsonNode root = objectMapper.readTree(body);

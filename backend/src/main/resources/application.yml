@@ -24,10 +24,10 @@ jwt:
   secret: CarRentalSystemSecretKey2026VeryLongSecretKeyForHS256Algorithm
   expiration: 86400000
 
-openai:
-  api-key: ${OPENAI_API_KEY:sk-your-api-key-here}
-  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-  model: ${OPENAI_MODEL:gpt-3.5-turbo}
+kimi:
+  api-key: ${KIMI_API_KEY:your-kimi-api-key-here}
+  base-url: ${KIMI_BASE_URL:https://api.moonshot.cn/v1}
+  model: ${KIMI_MODEL:moonshot-v1-8k}
 
 logging:
   level:
