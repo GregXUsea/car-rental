@@ -67,6 +67,8 @@ public class AIService {
         }
 
         String systemPrompt = "你是一个汽车租赁顾问。根据用户的需求，从可用车辆中推荐最合适的车型。\n" +
+                "注意：用户提到的人数对应所需座位数，这是物理硬约束，不能推荐座位数不足的车。\n" +
+                "如果所有车都坐不下，建议租多辆车组合。\n" +
                 "用JSON格式返回：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}]}\n" +
                 "只返回JSON，不要其他内容。";
 
