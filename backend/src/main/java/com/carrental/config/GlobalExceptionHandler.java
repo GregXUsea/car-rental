@@ -36,6 +36,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception e) {
         log.error("系统异常: ", e);
-        return Result.error("服务器错误: " + e.getMessage());
+        return Result.error("服务器错误[" + e.getClass().getSimpleName() + "]: " + e.getMessage());
     }
 }

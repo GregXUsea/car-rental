@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -128,22 +129,30 @@ public class AIService {
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.7);
-        requestBody.put("max_tokens", 1000);
+        requestBody.put("max_tokens", 2000);
+        // 关闭深度思考，节省token
+        requestBody.put("thinking", Map.of("type", "disabled"));
 
         String json = objectMapper.writeValueAsString(requestBody);
 
+        // 支持两种鉴权：API Password 直接用，或 APIKey:APISecret 拼接
+        String auth = (apiSecret == null || apiSecret.isBlank()) ? apiKey : (apiKey + ":" + apiSecret);
+
         Request request = new Request.Builder()
                 .url(baseUrl + "/chat/completions")
-                .addHeader("Authorization", "Bearer " + apiKey + ":" + apiSecret)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .addHeader("Authorization", "Bearer " + auth)
+                .addHeader("Content-Type", "application/json; charset=utf-8")
+                .post(RequestBody.create(json, MediaType.parse("application/json; charset=utf-8")))
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IOException("Kimi API调用失败，状态码: " + response.code());
+                String errBody = response.body() != null ? response.body().string() : "";
+                throw new IOException("星火API调用失败，状态码: " + response.code() + ", 响应: " + errBody);
             }
-            String body = response.body().string();
+            // 显式按UTF-8读取响应
+            byte[] respBytes = response.body().bytes();
+            String body = new String(respBytes, StandardCharsets.UTF_8);
             JsonNode root = objectMapper.readTree(body);
             return root.path("choices").get(0).path("message").path("content").asText();
         }
