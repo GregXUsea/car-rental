@@ -61,10 +61,10 @@ public class AIService {
      * @param conversationId  对话上下文ID（首次请求为null）
      * @return 推荐结果（含新的conversationId供追问使用）
      */
-    public AIRecommendResult recommendCars(String userRequirement, String conversationId) {
+    public AIRecommendResult recommendCars(String userRequirement, String conversationId, boolean refresh) {
         final String originalReq = userRequirement;
         long startTime = System.currentTimeMillis();
-        log.info("AI推荐请求: requirement=\"{}\", conversationId={}", originalReq, conversationId);
+        log.info("AI推荐请求: requirement=\"{}\", conversationId={}, refresh={}", originalReq, conversationId, refresh);
 
         List<Car> availableCars = carService.listAvailable();
         log.info("可用车辆数: {}", availableCars.size());
@@ -88,18 +88,17 @@ public class AIService {
             return localResult;
         }
 
-        // 构建车辆列表文本
+        // 构建车辆列表文本（精简：仅保留推荐所需核心字段）
         StringBuilder carListStr = new StringBuilder();
         for (Car car : availableCars) {
             carListStr.append(String.format(
-                    "ID:%d, %s %s, %s, %d座, %.0f元/天, %s, 里程%dkm, %s\n",
-                    car.getId(), car.getBrand(), car.getModel(), car.getColor(),
-                    car.getSeats(), car.getPricePerDay(), car.getCategory(),
-                    car.getMileage(), car.getDescription()));
+                    "ID:%d, %s %s, %d座, %.0f元/天, %s\n",
+                    car.getId(), car.getBrand(), car.getModel(),
+                    car.getSeats(), car.getPricePerDay(), car.getCategory()));
         }
 
         // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
-        String systemPrompt = buildSystemPrompt(historyContext);
+        String systemPrompt = buildSystemPrompt(historyContext, refresh);
 
         // 构建用户提示词（需求 + 车辆列表 + 可选组合）
         String userPrompt = buildUserPrompt(originalReq, availableCars, carListStr.toString());
@@ -177,7 +176,7 @@ public class AIService {
     /**
      * 构建系统提示词
      */
-    private String buildSystemPrompt(String historyContext) {
+    private String buildSystemPrompt(String historyContext, boolean refresh) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是汽车租赁顾问。根据用户需求推荐车型。\n\n");
         sb.append("规则：\n");
@@ -186,6 +185,10 @@ public class AIService {
         sb.append("3. 按匹配度排序，最多5个，优先总价最低的。预算不够才推荐超预算的并说明。\n");
         sb.append("4. reason写明：几辆什么车、总座位、总价、为何适合。\n");
         sb.append("5. matchScore用中文：「完美匹配」「高匹配度」「经济之选」等。\n\n");
+
+        if (refresh) {
+            sb.append("！！！重要：用户点击了「换一批」，请务必推荐与上次完全不同的车辆或组合方案。跳过之前推荐过的组合。\n\n");
+        }
 
         if (historyContext != null && !historyContext.isEmpty()) {
             sb.append("对话历史：\n").append(historyContext).append("\n");
@@ -298,7 +301,7 @@ public class AIService {
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.3);
-        requestBody.put("max_tokens", 3000);
+        requestBody.put("max_tokens", 2000);
 
         String json = objectMapper.writeValueAsString(requestBody);
 

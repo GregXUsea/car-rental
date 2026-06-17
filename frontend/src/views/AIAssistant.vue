@@ -221,7 +221,7 @@ const handleRecommend = async () => {
   await doRecommend(requirement.value.trim())
 }
 
-const doRecommend = async (reqText) => {
+const doRecommend = async (reqText, isRefresh = false) => {
   loading.value = true
   errorMsg.value = ''
   result.value = null
@@ -232,6 +232,9 @@ const doRecommend = async (reqText) => {
     const payload = { requirement: reqText }
     if (conversationId.value) {
       payload.conversationId = conversationId.value
+    }
+    if (isRefresh) {
+      payload.refresh = true
     }
     const res = await api.post('/ai/recommend', payload, { timeout: 90000 })
     if (res.code === 200) {
@@ -270,7 +273,7 @@ const handleFollowUp = async () => {
 const handleRetry = () => {
   errorMsg.value = ''
   if (lastRequirement.value) {
-    doRecommend(lastRequirement.value)
+    doRecommend(lastRequirement.value, true)
   } else {
     handleRecommend()
   }
