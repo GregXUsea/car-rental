@@ -25,7 +25,7 @@ jwt:
   expiration: 86400000
 
 spark:
-  api-key: ${SPARK_API_KEY:ZVpcxAOfIOOqcVvbWLji:pgMabOZjagOxrPKFoOdO}
+  api-key: ${SPARK_API_KEY:}
   api-secret: ${SPARK_API_SECRET:}
   base-url: ${SPARK_BASE_URL:https://spark-api-open.xf-yun.com/agent/v1}
   model: ${SPARK_MODEL:spark-x}

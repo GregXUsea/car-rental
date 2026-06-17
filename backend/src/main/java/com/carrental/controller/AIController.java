@@ -19,7 +19,8 @@ public class AIController {
     @PostMapping("/recommend")
     public Result<AIRecommendResult> recommend(@RequestBody AIRecommendRequest request) {
         try {
-            AIRecommendResult result = aiService.recommendCars(request.getRequirement());
+            AIRecommendResult result = aiService.recommendCars(
+                    request.getRequirement(), request.getConversationId());
             return Result.success(result);
         } catch (Exception e) {
             return Result.error("AI推荐服务暂时不可用: " + e.getMessage());

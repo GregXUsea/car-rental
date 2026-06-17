@@ -46,7 +46,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/reset-password",
                         "/api/cars/list",
                         "/api/cars/search",
-                        "/api/cars/detail/**"
+                        "/api/cars/detail/**",
+                        "/api/ai/recommend"
                 );
     }
 }

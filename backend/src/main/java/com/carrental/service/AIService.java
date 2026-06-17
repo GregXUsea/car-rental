@@ -9,6 +9,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,11 +18,14 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
 public class AIService {
+
+    private static final Logger log = LoggerFactory.getLogger(AIService.class);
 
     @Value("${spark.api-key}")
     private String apiKey;
@@ -46,16 +51,44 @@ public class AIService {
             .readTimeout(60, TimeUnit.SECONDS)
             .build();
 
-    public AIRecommendResult recommendCars(String userRequirement) {
-        List<Car> availableCars = carService.listAvailable();
+    /** 多轮对话上下文存储：conversationId → 历史消息列表 */
+    private final Map<String, List<Map<String, String>>> conversationStore = new ConcurrentHashMap<>();
+    private static final int MAX_HISTORY_TURNS = 3; // 最多保留3轮对话
 
-        // 如果 API key 未配置，使用本地关键词匹配
-        if (apiKey == null || apiKey.equals("your-spark-api-key-here") || apiKey.isBlank()) {
-            AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
+    // ==================== 公开方法 ====================
+
+    /**
+     * AI智能推荐车辆，支持多轮对话
+     *
+     * @param userRequirement 用户自然语言需求
+     * @param conversationId  对话上下文ID（首次请求为null）
+     * @return 推荐结果（含新的conversationId供追问使用）
+     */
+    public AIRecommendResult recommendCars(String userRequirement, String conversationId) {
+        final String originalReq = userRequirement;
+        long startTime = System.currentTimeMillis();
+        log.info("AI推荐请求: requirement=\"{}\", conversationId={}", originalReq, conversationId);
+
+        List<Car> availableCars = carService.listAvailable();
+        log.info("可用车辆数: {}", availableCars.size());
+
+        if (availableCars.isEmpty()) {
+            AIRecommendResult empty = new AIRecommendResult();
+            empty.setSummary("当前暂无可用车辆，请稍后再试");
+            empty.setPoweredBy("系统");
+            empty.setRecommendations(Collections.emptyList());
+            return empty;
+        }
+
+        // 如果 API key 未配置，降级为本地推荐
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("星火API Key未配置，使用本地推荐");
+            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars);
             localResult.setPoweredBy("本地");
             return localResult;
         }
 
+        // 构建车辆列表文本
         StringBuilder carListStr = new StringBuilder();
         for (Car car : availableCars) {
             carListStr.append(String.format(
@@ -65,66 +98,41 @@ public class AIService {
                     car.getMileage(), car.getDescription()));
         }
 
-        String systemPrompt = "你是汽车租赁顾问。根据用户需求从可用车辆中推荐车型。\n" +
-                "\n" +
-                "规则：\n" +
-                "1. 用户说「N人」就需要N个座位，单车不够就从「可选组合」中推荐多车方案。\n" +
-                "2. 用户说「X以内」「不超过X」「X元/天」「预算X」都是总价上限，只推荐总价≤预算的组合。\n" +
-                "3. 从「可选组合」中选总价≤预算的，按总价从低到高排列，推荐前5个最经济的。\n" +
-                "4. 如果没有预算内的方案，才推荐超预算方案并说明超了多少。\n" +
-                "5. reason必须写明：几辆什么车、总座位数、总价（元/天）。\n" +
-                "\n" +
-                "返回纯JSON：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}]}";
+        // 构建对话历史上下文
+        String historyContext = buildHistoryContext(conversationId);
 
-        // 若无人车能容纳 → 预计算所有可行2车组合，补到prompt中，AI负责筛选排序
-        String userPrompt = String.format("用户需求：%s\n\n可用车辆：\n%s", userRequirement, carListStr);
-        int requiredSeats = getRequiredSeats(userRequirement);
-        int maxSeats = availableCars.stream().mapToInt(Car::getSeats).max().orElse(0);
-        if (requiredSeats > maxSeats) {
-            StringBuilder combos = new StringBuilder("\n可选2车组合（总座位≥" + requiredSeats + "人，已算总价）：\n");
-            java.util.Set<String> seen = new java.util.HashSet<>();
-            int idx = 1;
-            for (int i = 0; i < availableCars.size(); i++) {
-                for (int j = i; j < availableCars.size(); j++) {
-                    Car a = availableCars.get(i), b = availableCars.get(j);
-                    int totalSeats;
-                    double totalPrice;
-                    String desc;
-                    if (i == j) {
-                        int count = (int) Math.ceil((double) requiredSeats / a.getSeats());
-                        if (count > 3) continue; // 超过3辆不推荐
-                        totalSeats = a.getSeats() * count;
-                        totalPrice = a.getPricePerDay().doubleValue() * count;
-                        desc = String.format("%d辆 %s %s", count, a.getBrand(), a.getModel());
-                    } else {
-                        if (a.getSeats() + b.getSeats() < requiredSeats) continue;
-                        totalSeats = a.getSeats() + b.getSeats();
-                        totalPrice = a.getPricePerDay().doubleValue() + b.getPricePerDay().doubleValue();
-                        desc = String.format("1辆 %s %s + 1辆 %s %s",
-                                a.getBrand(), a.getModel(), b.getBrand(), b.getModel());
-                    }
-                    String key = desc.replaceAll("\\d+辆 ", "");
-                    if (seen.add(key)) {
-                        combos.append(String.format("[%d] %s → %d座 ¥%.0f/天\n",
-                                idx++, desc, totalSeats, totalPrice));
-                    }
-                }
-            }
-            userPrompt += combos.toString();
-        }
+        // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
+        String systemPrompt = buildSystemPrompt(historyContext);
+
+        // 构建用户提示词（需求 + 车辆列表 + 可选组合）
+        String userPrompt = buildUserPrompt(originalReq, availableCars, carListStr.toString());
 
         try {
-            String response = callSpark(systemPrompt, userPrompt);
-            AIRecommendResult aiResult = parseRecommendResult(response, availableCars);
+            log.info("调用星火API, model={}, prompt总长度={}", model, userPrompt.length());
+            String response = callSparkWithRetry(systemPrompt, userPrompt);
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("星火API响应耗时: {}ms", elapsed);
+
+            AIRecommendResult aiResult = parseRecommendResult(response, availableCars, originalReq);
             aiResult.setPoweredBy("AI");
+
+            // 保存对话上下文
+            String newConvId = saveConversation(conversationId, originalReq, aiResult.getSummary());
+            aiResult.setConversationId(newConvId);
+
             return aiResult;
         } catch (Exception e) {
-            AIRecommendResult localResult = fallbackRecommend(userRequirement, availableCars);
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("星火API调用失败(耗时{}ms)，降级为本地推荐: {}", elapsed, e.getMessage());
+            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars);
             localResult.setPoweredBy("本地");
             return localResult;
         }
     }
 
+    /**
+     * 车辆维护预测（AI-2选做功能）
+     */
     public Map<String, Object> getMaintenancePrediction(Long carId) {
         Car car = carService.getById(carId);
         if (car == null) {
@@ -154,9 +162,10 @@ public class AIService {
                 car.getLastMaintainDate(), recordStr);
 
         try {
-            String response = callSpark(systemPrompt, userPrompt);
+            String response = callSparkWithRetry(systemPrompt, userPrompt);
             return objectMapper.readValue(response, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
+            log.warn("维护预测AI调用失败: {}", e.getMessage());
             Map<String, Object> fallback = new HashMap<>();
             fallback.put("nextMaintenanceDate", "数据不足，无法准确预测");
             fallback.put("nextMaintenanceType", "常规保养");
@@ -166,6 +175,130 @@ public class AIService {
         }
     }
 
+    // ==================== AI调用核心 ====================
+
+    /**
+     * 构建系统提示词
+     */
+    private String buildSystemPrompt(String historyContext) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐车型。\n\n");
+        sb.append("规则：\n");
+        sb.append("1. 用户说「N人」就需要N个座位。单车座不够就从可用车辆中自行组合，或从提供的「可选组合」中选择。\n");
+        sb.append("2. 用户说「X以内」「不超过X」「X元/天」「预算X」都是总价上限（多车组合看总价），只推荐总价≤预算的方案。\n");
+        sb.append("3. 推荐时按匹配度从高到低排列，最多推荐5个方案，优先推荐总价最低且满足需求的。\n");
+        sb.append("4. 如果没有预算内的方案，才推荐超预算方案并说明超了多少。\n");
+        sb.append("5. reason必须写明：几辆什么车、总座位数、总价（元/天）、为什么适合用户需求。\n");
+        sb.append("6. 多车组合方案用carIds数组表示，如\"carIds\":[2,5]表示推荐ID为2和5的两辆车组合。\n");
+        sb.append("7. matchScore用中文描述匹配程度，如\"完美匹配\"\"高匹配度\"\"经济之选\"等。\n\n");
+
+        if (historyContext != null && !historyContext.isEmpty()) {
+            sb.append("对话历史：\n").append(historyContext).append("\n");
+            sb.append("请结合对话历史理解用户的追问意图。\n\n");
+        }
+
+        sb.append("返回纯JSON（不要markdown包裹）：\n");
+        sb.append("{\"summary\":\"总体推荐理由\",\"recommendations\":[");
+        sb.append("{\"carIds\":[1],\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}");
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    /**
+     * 构建用户提示词（含车辆列表和可选组合）
+     */
+    private String buildUserPrompt(String requirement, List<Car> availableCars, String carListStr) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("用户需求：").append(requirement).append("\n\n");
+        prompt.append("可用车辆：\n").append(carListStr);
+
+        // 当需求人数超过最大单车座位数时，预计算组合方案供AI参考
+        int requiredSeats = getRequiredSeats(requirement);
+        int maxSeats = availableCars.stream().mapToInt(Car::getSeats).max().orElse(0);
+        if (requiredSeats > maxSeats) {
+            prompt.append(buildComboOptions(availableCars, requiredSeats));
+        }
+        return prompt.toString();
+    }
+
+    /**
+     * 预计算多车组合方案（减少AI计算量，AI负责筛选排序）
+     */
+    private String buildComboOptions(List<Car> availableCars, int requiredSeats) {
+        StringBuilder combos = new StringBuilder();
+        combos.append("\n可选组合方案（总座位≥").append(requiredSeats).append("人，已算总价，供参考）：\n");
+
+        Set<String> seen = new HashSet<>();
+        int idx = 1;
+
+        // 同款车×N
+        for (Car car : availableCars) {
+            int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
+            if (count > 3) continue;
+            int totalSeats = car.getSeats() * count;
+            double totalPrice = car.getPricePerDay().doubleValue() * count;
+            String key = count + "x" + car.getId();
+            if (seen.add(key)) {
+                combos.append(String.format("[C%d] %d辆 %s %s(%d座×%d=%d座) → ¥%.0f/天  carIds:[%d",
+                        idx++, count, car.getBrand(), car.getModel(),
+                        car.getSeats(), count, totalSeats, totalPrice, car.getId()));
+                for (int k = 1; k < count; k++) combos.append(",").append(car.getId());
+                combos.append("]\n");
+            }
+        }
+
+        // 异款配对：1辆A + 1辆B
+        for (int i = 0; i < availableCars.size(); i++) {
+            for (int j = i + 1; j < availableCars.size(); j++) {
+                Car a = availableCars.get(i), b = availableCars.get(j);
+                if (a.getSeats() + b.getSeats() >= requiredSeats) {
+                    int totalSeats = a.getSeats() + b.getSeats();
+                    double totalPrice = a.getPricePerDay().doubleValue() + b.getPricePerDay().doubleValue();
+                    String key = a.getId() + "+" + b.getId();
+                    if (seen.add(key)) {
+                        combos.append(String.format("[C%d] 1辆 %s %s(%d座) + 1辆 %s %s(%d座)=%d座 → ¥%.0f/天  carIds:[%d,%d]\n",
+                                idx++, a.getBrand(), a.getModel(), a.getSeats(),
+                                b.getBrand(), b.getModel(), b.getSeats(),
+                                totalSeats, totalPrice, a.getId(), b.getId()));
+                    }
+                }
+            }
+        }
+        combos.append("推荐时请引用上述carIds，组合方案务必使用carIds数组。\n");
+        return combos.toString();
+    }
+
+    /**
+     * 调用星火API（带重试机制）
+     */
+    private String callSparkWithRetry(String systemPrompt, String userPrompt) throws IOException {
+        int maxRetries = 2;
+        long backoffMs = 1000;
+        IOException lastException = new IOException("星火API调用失败（未知原因）");
+
+        for (int i = 0; i <= maxRetries; i++) {
+            try {
+                return callSpark(systemPrompt, userPrompt);
+            } catch (IOException e) {
+                lastException = e;
+                if (i < maxRetries) {
+                    log.warn("星火API调用失败，{}ms后重试({}/{})：{}", backoffMs, i + 1, maxRetries, e.getMessage());
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    backoffMs *= 2;
+                }
+            }
+        }
+        throw lastException;
+    }
+
+    /**
+     * 单次调用星火API
+     */
     private String callSpark(String systemPrompt, String userPrompt) throws IOException {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", model);
@@ -174,12 +307,10 @@ public class AIService {
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.3);
         requestBody.put("max_tokens", 8000);
-        // 关闭深度思考
-        requestBody.put("thinking", Map.of("type", "disabled"));
 
         String json = objectMapper.writeValueAsString(requestBody);
 
-        // 支持两种鉴权：API Password 直接用，或 APIKey:APISecret 拼接
+        // 支持两种鉴权：仅API Key，或 APIKey:APISecret 拼接
         String auth = (apiSecret == null || apiSecret.isBlank()) ? apiKey : (apiKey + ":" + apiSecret);
 
         Request request = new Request.Builder()
@@ -192,55 +323,192 @@ public class AIService {
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String errBody = response.body() != null ? response.body().string() : "";
+                log.error("星火API返回错误，状态码: {}, 响应: {}", response.code(), errBody);
                 throw new IOException("星火API调用失败，状态码: " + response.code() + ", 响应: " + errBody);
             }
             // 显式按UTF-8读取响应
             byte[] respBytes = response.body().bytes();
             String body = new String(respBytes, StandardCharsets.UTF_8);
+            log.debug("星火API原始响应: {}", body.length() > 500 ? body.substring(0, 500) + "..." : body);
             JsonNode root = objectMapper.readTree(body);
-            return root.path("choices").get(0).path("message").path("content").asText();
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+            log.debug("星火API提取内容长度: {}", content.length());
+            return content;
         }
     }
 
-    private AIRecommendResult parseRecommendResult(String response, List<Car> availableCars) {
+    // ==================== 结果解析 ====================
+
+    /**
+     * 解析AI返回的JSON推荐结果，支持carId(旧格式)和carIds(新格式)
+     */
+    private AIRecommendResult parseRecommendResult(String response, List<Car> availableCars, String originalReq) {
         try {
             // 清理可能的markdown包裹
             String json = response.trim();
             if (json.startsWith("```")) {
                 json = json.replaceAll("```json?", "").replaceAll("```", "").trim();
             }
+            log.debug("解析AI响应JSON, 长度={}", json.length());
+
+            Map<Long, Car> carMap = availableCars.stream()
+                    .collect(Collectors.toMap(Car::getId, c -> c, (a, b) -> a));
 
             JsonNode root = objectMapper.readTree(json);
             AIRecommendResult result = new AIRecommendResult();
-            result.setSummary(root.path("summary").asText());
-
-            Map<Long, Car> carMap = availableCars.stream()
-                    .collect(Collectors.toMap(Car::getId, c -> c));
+            result.setSummary(root.path("summary").asText("根据您的需求，为您推荐以下车型"));
 
             List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
             JsonNode recs = root.path("recommendations");
             for (JsonNode rec : recs) {
-                AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-                Long carId = rec.path("carId").asLong();
-                item.setCar(carMap.get(carId));
-                item.setReason(rec.path("reason").asText());
-                item.setMatchScore(rec.path("matchScore").asText());
-                if (item.getCar() != null) {
+                List<Car> matchedCars = new ArrayList<>();
+
+                // 优先解析 carIds 数组（新格式）
+                JsonNode carIdsNode = rec.path("carIds");
+                if (carIdsNode.isArray() && carIdsNode.size() > 0) {
+                    for (JsonNode idNode : carIdsNode) {
+                        Long carId = idNode.asLong();
+                        Car car = carMap.get(carId);
+                        if (car != null) {
+                            matchedCars.add(car);
+                        } else {
+                            log.warn("AI返回未知carId: {}", carId);
+                        }
+                    }
+                } else {
+                    // 兼容旧格式 carId（单个数字）
+                    long carId = rec.path("carId").asLong(0);
+                    if (carId > 0) {
+                        Car car = carMap.get(carId);
+                        if (car != null) {
+                            matchedCars.add(car);
+                        }
+                    }
+                }
+
+                if (!matchedCars.isEmpty()) {
+                    AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+                    item.setCars(matchedCars);
+                    item.setReason(rec.path("reason").asText(""));
+                    item.setMatchScore(rec.path("matchScore").asText(""));
                     items.add(item);
                 }
             }
+
+            // 如果AI没有返回有效推荐，降级
+            if (items.isEmpty()) {
+                log.warn("AI未返回有效推荐项，降级为本地推荐");
+                return fallbackRecommend(originalReq, availableCars);
+            }
+
             result.setRecommendations(items);
             return result;
         } catch (Exception e) {
-            return fallbackRecommend("", availableCars);
+            log.error("解析AI推荐结果失败: {}", e.getMessage());
+            return fallbackRecommend(originalReq, availableCars);
         }
     }
 
+    // ==================== 多轮对话 ====================
+
+    /**
+     * 构建对话历史上下文文本
+     */
+    private String buildHistoryContext(String conversationId) {
+        if (conversationId == null || conversationId.isEmpty()) return "";
+
+        List<Map<String, String>> history = conversationStore.get(conversationId);
+        if (history == null || history.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder();
+        for (Map<String, String> turn : history) {
+            sb.append("用户：").append(turn.get("user")).append("\n");
+            sb.append("助手：").append(turn.get("assistant")).append("\n");
+        }
+        log.debug("加载对话历史, conversationId={}, 轮数={}", conversationId, history.size() / 2);
+        return sb.toString();
+    }
+
+    /**
+     * 保存对话记录，返回新的conversationId
+     */
+    private String saveConversation(String existingId, String userMsg, String aiSummary) {
+        String convId = (existingId != null && !existingId.isEmpty())
+                ? existingId
+                : UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+        List<Map<String, String>> history = conversationStore.computeIfAbsent(convId, k -> new ArrayList<>());
+
+        Map<String, String> turn = new HashMap<>();
+        turn.put("user", userMsg.length() > 200 ? userMsg.substring(0, 200) + "..." : userMsg);
+        turn.put("assistant", aiSummary != null ? aiSummary : "");
+        history.add(turn);
+
+        // 限制历史轮数
+        while (history.size() > MAX_HISTORY_TURNS * 2) {
+            history.remove(0);
+        }
+
+        log.debug("保存对话, conversationId={}, 当前轮数={}", convId, history.size());
+        return convId;
+    }
+
+    // ==================== 本地兜底 ====================
+
+    /**
+     * 本地关键词推荐（仅当AI API完全不可用时兜底）
+     */
+    private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars) {
+        log.info("执行本地兜底推荐, requirement=\"{}\", 车辆数={}", requirement, cars.size());
+        AIRecommendResult result = new AIRecommendResult();
+
+        String req = requirement != null ? requirement.toLowerCase() : "";
+        int requiredSeats = getRequiredSeats(req);
+
+        // 先按座位数过滤
+        List<Car> filtered = new ArrayList<>();
+        for (Car car : cars) {
+            if (requiredSeats <= 0 || car.getSeats() >= requiredSeats) {
+                filtered.add(car);
+            }
+        }
+
+        // 如果过滤后没有车 → 多车组合建议
+        if (filtered.isEmpty()) {
+            return buildMultiCarSuggestion(cars, requiredSeats, req);
+        }
+
+        List<Car> scored = new ArrayList<>(filtered);
+        final int reqSeats = requiredSeats;
+        scored.sort((a, b) -> {
+            int scoreA = calcMatchScore(a, req, reqSeats);
+            int scoreB = calcMatchScore(b, req, reqSeats);
+            return scoreB - scoreA;
+        });
+
+        List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
+        int count = Math.min(3, scored.size());
+        for (int i = 0; i < count; i++) {
+            Car car = scored.get(i);
+            AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+            item.setCars(List.of(car));
+            item.setReason(buildReason(car, req));
+            item.setMatchScore(calcMatchScore(car, req, reqSeats) + "%");
+            items.add(item);
+        }
+
+        result.setSummary(String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型（本地推荐）", filtered.size(), items.size()));
+        result.setRecommendations(items);
+        return result;
+    }
+
+    // ==================== 辅助方法 ====================
+
     /**
      * 从需求中提取所需座位数，返回0表示未明确指定
-     * 仅用于本地兜底逻辑，AI路径由模型自行理解
      */
     private int getRequiredSeats(String req) {
+        if (req == null) return 0;
         // 数字 + 人/个/口/座
         java.util.regex.Pattern p = java.util.regex.Pattern.compile("(\\d+)\\s*[人个口座]");
         java.util.regex.Matcher m = p.matcher(req);
@@ -260,55 +528,11 @@ public class AIService {
         return 0;
     }
 
-    private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars) {
-        AIRecommendResult result = new AIRecommendResult();
-
-        String req = requirement.toLowerCase();
-        int requiredSeats = getRequiredSeats(req);
-
-        // 先按座位数硬过滤：需求人数超过座位数直接排除
-        List<Car> filtered = new ArrayList<>();
-        for (Car car : cars) {
-            if (requiredSeats <= 0 || car.getSeats() >= requiredSeats) {
-                filtered.add(car);
-            }
-        }
-
-        // 如果过滤后没有车 → 建议租多辆
-        if (filtered.isEmpty()) {
-            return buildMultiCarSuggestion(cars, requiredSeats, req);
-        }
-
-        List<Car> scored = new ArrayList<>(filtered);
-
-        // 根据关键词给车辆打分排序
-        final int reqSeats = requiredSeats;
-        scored.sort((a, b) -> {
-            int scoreA = calcMatchScore(a, req, reqSeats);
-            int scoreB = calcMatchScore(b, req, reqSeats);
-            return scoreB - scoreA;
-        });
-
-        List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
-        int count = Math.min(3, scored.size());
-        for (int i = 0; i < count; i++) {
-            Car car = scored.get(i);
-            AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-            item.setCar(car);
-            item.setReason(buildReason(car, req));
-            item.setMatchScore(calcMatchScore(car, req, reqSeats) + "%");
-            items.add(item);
-        }
-
-        result.setSummary(String.format("为您从 %d 辆可用车辆中推荐了 %d 辆最匹配的车型", filtered.size(), items.size()));
-        result.setRecommendations(items);
-        return result;
-    }
-
     /**
      * 从需求中提取预算金额，返回0表示未指定
      */
     private int getBudget(String req) {
+        if (req == null) return 0;
         java.util.regex.Pattern p;
         java.util.regex.Matcher m;
         // "预算500"、"预算 500"
@@ -319,14 +543,15 @@ public class AIService {
         p = java.util.regex.Pattern.compile("(\\d+)\\s*元?/天");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
-        // "500以内"、"500以下"、"不超过500"、"500之内"
+        // "不超过500"、"不大于500"、"不高于500"
         p = java.util.regex.Pattern.compile("(?:不超过|不大于|不高于)\\s*(\\d+)");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
+        // "500以内"、"500以下"、"500之内"
         p = java.util.regex.Pattern.compile("(\\d+)\\s*(?:以内|以下|之内)");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
-        // "500左右" — 按上限取，略微宽松
+        // "500左右"
         p = java.util.regex.Pattern.compile("(\\d+)\\s*左右");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
@@ -334,33 +559,34 @@ public class AIService {
     }
 
     /**
-     * 人数超出所有车辆座位数时，枚举所有可行组合方案（同款×N + 异款配对），按总价排序，过滤超预算
+     * 人数超出所有车辆座位数时，枚举多车组合方案
      */
     private AIRecommendResult buildMultiCarSuggestion(List<Car> cars, int requiredSeats, String req) {
         AIRecommendResult result = new AIRecommendResult();
         int budget = getBudget(req);
         List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
 
         // 1. 同款车 × N
         for (Car car : cars) {
             int count = (int) Math.ceil((double) requiredSeats / car.getSeats());
+            if (count > 3) continue;
             double totalCost = car.getPricePerDay().doubleValue() * count;
             String key = count + "x" + car.getId();
-            if (seen.add(key) && count <= 3) { // 最多3辆同款
-                items.add(buildComboItem(car, null, count, 0, totalCost, budget));
+            if (seen.add(key)) {
+                items.add(buildComboItem(List.of(car), count, totalCost, budget));
             }
         }
 
-        // 2. 异款配对：1辆A + 1辆B（覆盖大多数多人场景）
+        // 2. 异款配对：1辆A + 1辆B
         for (int i = 0; i < cars.size(); i++) {
             for (int j = i + 1; j < cars.size(); j++) {
                 Car a = cars.get(i), b = cars.get(j);
                 if (a.getSeats() + b.getSeats() >= requiredSeats) {
                     double totalCost = a.getPricePerDay().doubleValue() + b.getPricePerDay().doubleValue();
-                    String key = "1x" + a.getId() + "+1x" + b.getId();
+                    String key = a.getId() + "+" + b.getId();
                     if (seen.add(key)) {
-                        items.add(buildComboItem(a, b, 1, 1, totalCost, budget));
+                        items.add(buildComboItem(List.of(a, b), 1, totalCost, budget));
                     }
                 }
             }
@@ -368,8 +594,8 @@ public class AIService {
 
         // 按总价排序
         items.sort((x, y) -> {
-            double px = Double.parseDouble(x.getMatchScore().replace("¥", "").replace("/天", ""));
-            double py = Double.parseDouble(y.getMatchScore().replace("¥", "").replace("/天", ""));
+            double px = parsePrice(x.getMatchScore());
+            double py = parsePrice(y.getMatchScore());
             return Double.compare(px, py);
         });
 
@@ -377,20 +603,22 @@ public class AIService {
         List<AIRecommendResult.RecommendItem> within = new ArrayList<>();
         List<AIRecommendResult.RecommendItem> over = new ArrayList<>();
         for (AIRecommendResult.RecommendItem item : items) {
-            double price = Double.parseDouble(item.getMatchScore().replace("¥", "").replace("/天", ""));
+            double price = parsePrice(item.getMatchScore());
             if (budget > 0 && price > budget) {
                 if (over.size() < 3) over.add(item);
             } else {
                 if (within.size() < 5) within.add(item);
             }
         }
-        // 无预算内方案则展示超预算的
-        List<AIRecommendResult.RecommendItem> result2 = within.isEmpty() ? over : within;
-        result2.addAll(within.isEmpty() ? within : over);
+
+        List<AIRecommendResult.RecommendItem> finalList = within.isEmpty() ? over : within;
+        if (!within.isEmpty() && !over.isEmpty()) {
+            finalList = new ArrayList<>(within);
+        }
 
         // 最便宜标最划算
-        if (!result2.isEmpty()) {
-            AIRecommendResult.RecommendItem best = result2.get(0);
+        if (!finalList.isEmpty()) {
+            AIRecommendResult.RecommendItem best = finalList.get(0);
             best.setReason("[最划算] " + best.getReason());
             best.setMatchScore(best.getMatchScore() + " [最划算]");
         }
@@ -399,34 +627,44 @@ public class AIService {
         if (budget > 0 && within.isEmpty()) {
             summary = String.format("当前无%d座车辆，预算¥%d/天以内无可行方案，以下为最接近的方案（均超预算）：", requiredSeats, budget);
         } else if (budget > 0) {
-            summary = String.format("当前无%d座车辆，为您列出 %d 种预算内组合方案（≤¥%d/天）：", requiredSeats, within.size(), budget);
+            summary = String.format("当前无%d座车辆，为您列出预算内组合方案（≤¥%d/天）：", requiredSeats, budget);
         } else {
-            summary = String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, result2.size());
+            summary = String.format("当前无%d座车辆，为您列出 %d 种组合方案，按总价排序：", requiredSeats, finalList.size());
         }
         result.setSummary(summary);
-        result.setRecommendations(result2);
+        result.setRecommendations(finalList);
         return result;
     }
 
     /** 构建一条组合推荐 */
-    private AIRecommendResult.RecommendItem buildComboItem(Car primary, Car secondary,
-                                                            int countPrimary, int countSecondary,
+    private AIRecommendResult.RecommendItem buildComboItem(List<Car> carList, int multiplier,
                                                             double totalCost, int budget) {
         AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-        item.setCar(primary);
-        int totalSeats = primary.getSeats() * countPrimary
-                + (secondary != null ? secondary.getSeats() * countSecondary : 0);
+
+        // 展开同款多辆
+        List<Car> expanded = new ArrayList<>();
+        for (Car c : carList) {
+            for (int k = 0; k < multiplier; k++) {
+                expanded.add(c);
+            }
+        }
+        // 对于异款配对，carList已有2个不同元素，multiplier=1，无需展开
+        item.setCars(expanded.size() >= carList.size() ? expanded : carList);
+
+        int totalSeats = expanded.stream().mapToInt(Car::getSeats).sum();
         String tag = (budget > 0 && totalCost > budget) ? " [超预算]" : "";
 
         StringBuilder reason = new StringBuilder();
-        if (secondary == null) {
+        if (carList.size() == 1) {
+            Car c = carList.get(0);
             reason.append(String.format("%d辆%s%s（%d座×%d=%d座），总价¥%.0f/天%s",
-                    countPrimary, primary.getBrand(), primary.getModel(),
-                    primary.getSeats(), countPrimary, totalSeats, totalCost, tag));
+                    multiplier, c.getBrand(), c.getModel(),
+                    c.getSeats(), multiplier, totalSeats, totalCost, tag));
         } else {
+            Car a = carList.get(0), b = carList.get(1);
             reason.append(String.format("1辆%s%s（%d座）+ 1辆%s%s（%d座）=%d座，总价¥%.0f/天%s",
-                    primary.getBrand(), primary.getModel(), primary.getSeats(),
-                    secondary.getBrand(), secondary.getModel(), secondary.getSeats(),
+                    a.getBrand(), a.getModel(), a.getSeats(),
+                    b.getBrand(), b.getModel(), b.getSeats(),
                     totalSeats, totalCost, tag));
         }
         item.setReason(reason.toString());
@@ -434,20 +672,26 @@ public class AIService {
         return item;
     }
 
-    private int calcMatchScore(Car car, String req, int requiredSeats) {
-        int score = 50; // 基础分
+    private double parsePrice(String matchScore) {
+        if (matchScore == null) return 99999;
+        try {
+            return Double.parseDouble(matchScore.replace("¥", "").replace("/天", "").trim());
+        } catch (NumberFormatException e) {
+            return 99999;
+        }
+    }
 
-        // 座位数匹配（改为核心权重）
+    private int calcMatchScore(Car car, String req, int requiredSeats) {
+        int score = 50;
+
         if (requiredSeats > 0) {
             if (car.getSeats() >= requiredSeats + 1) {
-                score += 35; // 超出需求，空间更大
+                score += 35;
             } else if (car.getSeats() >= requiredSeats) {
-                score += 30; // 刚好满足
+                score += 30;
             }
-            // 不满足的已被过滤，不会到这里
         }
 
-        // 价格匹配
         if (req.contains("便宜") || req.contains("经济") || req.contains("省钱") || req.contains("低端")) {
             if (car.getPricePerDay().doubleValue() < 200) score += 30;
             else if (car.getPricePerDay().doubleValue() < 300) score += 15;
@@ -460,13 +704,11 @@ public class AIService {
             if (car.getPricePerDay().doubleValue() >= 450) score += 35;
         }
 
-        // 类型匹配
         if ((req.contains("suv") || req.contains("越野")) && "SUV".equals(car.getCategory())) score += 20;
         if ((req.contains("商务") || req.contains("接待")) && "MPV".equals(car.getCategory())) score += 20;
         if ((req.contains("电车") || req.contains("纯电") || req.contains("新能源")) && "新能源".equals(car.getCategory())) score += 20;
         if ((req.contains("轿车") || req.contains("通勤")) && "轿车".equals(car.getCategory())) score += 15;
 
-        // 品牌关键词匹配
         String brandLower = car.getBrand().toLowerCase();
         String modelLower = car.getModel().toLowerCase();
         if (req.contains(brandLower) || req.contains(modelLower)) score += 20;
