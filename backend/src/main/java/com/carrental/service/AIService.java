@@ -178,21 +178,26 @@ public class AIService {
      */
     private String buildSystemPrompt(String historyContext, boolean refresh) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是汽车租赁顾问。根据用户需求推荐车型。\n\n");
-        sb.append("规则：\n");
-        sb.append("1. 「N人」需N个座位。单车不够可组合多辆，用carIds数组表示。\n");
-        sb.append("2. 「X以内」「不超过X」「X元/天」「预算X」= 总价上限，多车看总价。\n");
-        sb.append("3. 按匹配度排序，最多5个，优先总价最低的。预算不够才推荐超预算的并说明。\n");
-        sb.append("4. reason写明：几辆什么车、总座位、总价、为何适合。\n");
-        sb.append("5. matchScore用中文：「完美匹配」「高匹配度」「经济之选」等。\n\n");
+        sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐，尽量推荐满5个方案。\n\n");
+        sb.append("硬约束（必须满足）：\n");
+        sb.append("1. 「N人」→ 总座位≥N。单车不够可组合多辆，用carIds数组。\n");
+        sb.append("2. 「X以内」「不超过X」「预算X」→ 总价≤X。无预算则不限。\n\n");
+        sb.append("软偏好（优先但不排斥其他）：\n");
+        sb.append("3. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n");
+        sb.append("   例如5人+大空间：7座MPV优先，但后排宽敞的5座轿车也可推荐。\n\n");
+        sb.append("推荐原则：\n");
+        sb.append("4. 按匹配度排序，推荐3~5个方案，覆盖不同价位、品牌、座位数，让用户有对比空间。\n");
+        sb.append("5. budget内方案不够才推荐超预算的，并注明超了多少。\n");
+        sb.append("6. reason写明：几辆什么车、总座位、总价、为何适合。\n");
+        sb.append("7. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
 
         if (refresh) {
-            sb.append("！！！重要：用户点击了「换一批」，请务必推荐与上次完全不同的车辆或组合方案。跳过之前推荐过的组合。\n\n");
+            sb.append("！！！用户点了「换一批」，务必推荐与上次完全不同的方案！\n\n");
         }
 
         if (historyContext != null && !historyContext.isEmpty()) {
             sb.append("对话历史：\n").append(historyContext).append("\n");
-            sb.append("以上是之前的对话，当前用户消息是追加追问，请结合上下文理解意图。\n\n");
+            sb.append("当前是追加追问，请结合上下文理解意图。\n\n");
         }
 
         sb.append("返回纯JSON：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carIds\":[1],\"reason\":\"...\",\"matchScore\":\"...\"}]}");
