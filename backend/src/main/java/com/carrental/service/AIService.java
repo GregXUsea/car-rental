@@ -27,11 +27,8 @@ public class AIService {
 
     private static final Logger log = LoggerFactory.getLogger(AIService.class);
 
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
+    @Value("${spark.api-password}")
+    private String apiPassword;
 
     @Value("${spark.base-url}")
     private String baseUrl;
@@ -80,9 +77,9 @@ public class AIService {
             return empty;
         }
 
-        // 如果 API key 未配置，降级为本地推荐
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("星火API Key未配置，使用本地推荐");
+        // 如果 API 密码未配置，降级为本地推荐
+        if (apiPassword == null || apiPassword.isBlank()) {
+            log.warn("星火API密码未配置，使用本地推荐");
             AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars);
             localResult.setPoweredBy("本地");
             return localResult;
@@ -310,8 +307,8 @@ public class AIService {
 
         String json = objectMapper.writeValueAsString(requestBody);
 
-        // 支持两种鉴权：仅API Key，或 APIKey:APISecret 拼接
-        String auth = (apiSecret == null || apiSecret.isBlank()) ? apiKey : (apiKey + ":" + apiSecret);
+        // 使用星火API密码作为Bearer Token
+        String auth = apiPassword;
 
         Request request = new Request.Builder()
                 .url(baseUrl + "/chat/completions")
