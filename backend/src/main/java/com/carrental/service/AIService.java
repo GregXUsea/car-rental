@@ -77,10 +77,13 @@ public class AIService {
             return empty;
         }
 
+        // 构建对话历史上下文
+        String historyContext = buildHistoryContext(conversationId);
+
         // 如果 API 密码未配置，降级为本地推荐
         if (apiPassword == null || apiPassword.isBlank()) {
             log.warn("星火API密码未配置，使用本地推荐");
-            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars);
+            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars, historyContext);
             localResult.setPoweredBy("本地");
             return localResult;
         }
@@ -94,9 +97,6 @@ public class AIService {
                     car.getSeats(), car.getPricePerDay(), car.getCategory(),
                     car.getMileage(), car.getDescription()));
         }
-
-        // 构建对话历史上下文
-        String historyContext = buildHistoryContext(conversationId);
 
         // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
         String systemPrompt = buildSystemPrompt(historyContext);
@@ -121,7 +121,7 @@ public class AIService {
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
             log.error("星火API调用失败(耗时{}ms)，降级为本地推荐: {}", elapsed, e.getMessage());
-            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars);
+            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars, historyContext);
             localResult.setPoweredBy("本地");
             return localResult;
         }
@@ -179,25 +179,20 @@ public class AIService {
      */
     private String buildSystemPrompt(String historyContext) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐车型。\n\n");
+        sb.append("你是汽车租赁顾问。根据用户需求推荐车型。\n\n");
         sb.append("规则：\n");
-        sb.append("1. 用户说「N人」就需要N个座位。单车座不够就从可用车辆中自行组合，或从提供的「可选组合」中选择。\n");
-        sb.append("2. 用户说「X以内」「不超过X」「X元/天」「预算X」都是总价上限（多车组合看总价），只推荐总价≤预算的方案。\n");
-        sb.append("3. 推荐时按匹配度从高到低排列，最多推荐5个方案，优先推荐总价最低且满足需求的。\n");
-        sb.append("4. 如果没有预算内的方案，才推荐超预算方案并说明超了多少。\n");
-        sb.append("5. reason必须写明：几辆什么车、总座位数、总价（元/天）、为什么适合用户需求。\n");
-        sb.append("6. 多车组合方案用carIds数组表示，如\"carIds\":[2,5]表示推荐ID为2和5的两辆车组合。\n");
-        sb.append("7. matchScore用中文描述匹配程度，如\"完美匹配\"\"高匹配度\"\"经济之选\"等。\n\n");
+        sb.append("1. 「N人」需N个座位。单车不够可组合多辆，用carIds数组表示。\n");
+        sb.append("2. 「X以内」「不超过X」「X元/天」「预算X」= 总价上限，多车看总价。\n");
+        sb.append("3. 按匹配度排序，最多5个，优先总价最低的。预算不够才推荐超预算的并说明。\n");
+        sb.append("4. reason写明：几辆什么车、总座位、总价、为何适合。\n");
+        sb.append("5. matchScore用中文：「完美匹配」「高匹配度」「经济之选」等。\n\n");
 
         if (historyContext != null && !historyContext.isEmpty()) {
             sb.append("对话历史：\n").append(historyContext).append("\n");
-            sb.append("请结合对话历史理解用户的追问意图。\n\n");
+            sb.append("以上是之前的对话，当前用户消息是追加追问，请结合上下文理解意图。\n\n");
         }
 
-        sb.append("返回纯JSON（不要markdown包裹）：\n");
-        sb.append("{\"summary\":\"总体推荐理由\",\"recommendations\":[");
-        sb.append("{\"carIds\":[1],\"reason\":\"推荐理由\",\"matchScore\":\"匹配度\"}");
-        sb.append("]}");
+        sb.append("返回纯JSON：{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carIds\":[1],\"reason\":\"...\",\"matchScore\":\"...\"}]}");
         return sb.toString();
     }
 
@@ -303,7 +298,7 @@ public class AIService {
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.3);
-        requestBody.put("max_tokens", 8000);
+        requestBody.put("max_tokens", 3000);
 
         String json = objectMapper.writeValueAsString(requestBody);
 
@@ -395,14 +390,14 @@ public class AIService {
             // 如果AI没有返回有效推荐，降级
             if (items.isEmpty()) {
                 log.warn("AI未返回有效推荐项，降级为本地推荐");
-                return fallbackRecommend(originalReq, availableCars);
+                return fallbackRecommend(originalReq, availableCars, "");
             }
 
             result.setRecommendations(items);
             return result;
         } catch (Exception e) {
             log.error("解析AI推荐结果失败: {}", e.getMessage());
-            return fallbackRecommend(originalReq, availableCars);
+            return fallbackRecommend(originalReq, availableCars, "");
         }
     }
 
@@ -454,12 +449,22 @@ public class AIService {
 
     /**
      * 本地关键词推荐（仅当AI API完全不可用时兜底）
+     * @param requirement 用户当前输入
+     * @param cars 可用车辆列表
+     * @param historyContext 对话历史上下文（可为空）
      */
-    private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars) {
-        log.info("执行本地兜底推荐, requirement=\"{}\", 车辆数={}", requirement, cars.size());
+    private AIRecommendResult fallbackRecommend(String requirement, List<Car> cars, String historyContext) {
+        // 如果有对话历史且当前是短追问，合并上下文
+        String effectiveReq = requirement != null ? requirement : "";
+        if (historyContext != null && !historyContext.isEmpty() && effectiveReq.length() < 30) {
+            log.info("追问检测：合并对话上下文进行本地分析, 当前=\"{}\"", effectiveReq);
+            effectiveReq = extractLastUserRequirement(historyContext) + "。" + effectiveReq;
+            log.info("合并后需求: \"{}\"", effectiveReq.length() > 100 ? effectiveReq.substring(0, 100) + "..." : effectiveReq);
+        }
+        log.info("执行本地兜底推荐, 有效需求=\"{}\", 车辆数={}", effectiveReq, cars.size());
         AIRecommendResult result = new AIRecommendResult();
 
-        String req = requirement != null ? requirement.toLowerCase() : "";
+        String req = effectiveReq.toLowerCase();
         int requiredSeats = getRequiredSeats(req);
 
         // 先按座位数过滤
@@ -500,6 +505,22 @@ public class AIService {
     }
 
     // ==================== 辅助方法 ====================
+
+    /**
+     * 从对话历史文本中提取最近一条用户消息
+     */
+    private String extractLastUserRequirement(String historyContext) {
+        if (historyContext == null || historyContext.isEmpty()) return "";
+        // 格式：用户：xxx\n助手：xxx\n用户：xxx\n...
+        String[] lines = historyContext.split("\n");
+        String lastUser = "";
+        for (String line : lines) {
+            if (line.startsWith("用户：")) {
+                lastUser = line.substring(3).trim();
+            }
+        }
+        return lastUser;
+    }
 
     /**
      * 从需求中提取所需座位数，返回0表示未明确指定
