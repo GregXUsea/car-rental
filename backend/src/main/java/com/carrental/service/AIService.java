@@ -83,29 +83,6 @@ public class AIService {
         String historyContext = buildHistoryContext(conversationId);
         Set<Long> pastCarIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
 
-        // 程序级预算硬过滤：从需求中提取预算，只保留预算内车辆
-        int budget = getBudget(originalReq);
-        // 如果是追问且当前需求未明确预算，尝试从对话历史中提取
-        if (budget == 0 && historyContext != null && !historyContext.isEmpty()) {
-            budget = getBudget(extractLastUserRequirement(historyContext));
-        }
-        final int finalBudget = budget;
-        if (finalBudget > 0) {
-            List<Car> withinBudget = availableCars.stream()
-                    .filter(c -> c.getPricePerDay().intValue() <= finalBudget)
-                    .collect(Collectors.toList());
-            log.info("预算过滤: ≤{}元/天, 过滤前{}辆 → 过滤后{}辆", finalBudget, availableCars.size(), withinBudget.size());
-            if (withinBudget.isEmpty()) {
-                AIRecommendResult noBudget = new AIRecommendResult();
-                noBudget.setSummary(String.format("抱歉，预算≤¥%d/天范围内暂无可用车辆，建议放宽预算后重试。", finalBudget));
-                noBudget.setPoweredBy("系统");
-                noBudget.setConversationId(conversationId);
-                noBudget.setRecommendations(Collections.emptyList());
-                return noBudget;
-            }
-            availableCars = withinBudget;
-        }
-
         // 如果 API 密码未配置，降级为本地推荐
         if (apiPassword == null || apiPassword.isBlank()) {
             log.warn("星火API密码未配置，使用本地推荐");
@@ -124,7 +101,7 @@ public class AIService {
         }
 
         // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
-        String systemPrompt = buildSystemPrompt(historyContext, refresh, pastCarIds, finalBudget);
+        String systemPrompt = buildSystemPrompt(historyContext, refresh, pastCarIds);
 
         // 构建用户提示词（需求 + 车辆列表 + 可选组合）
         String userPrompt = buildUserPrompt(originalReq, availableCars, carListStr.toString());
@@ -244,17 +221,13 @@ public class AIService {
     /**
      * 构建系统提示词
      */
-    private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds, int budget) {
+    private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐最匹配的方案。\n\n");
-        sb.append("当前可用车辆均已筛选在预算范围内");
-        if (budget > 0) {
-            sb.append("（≤¥").append(budget).append("/天）");
-        }
-        sb.append("，无需再考虑价格约束。\n\n");
         sb.append("硬约束（必须满足）：\n");
         sb.append("1. 「N人」→ 总座位≥N。仅当用户明确需要多人出行且单车座位不足时，才推荐多车组合。\n");
-        sb.append("2. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
+        sb.append("2. 「预算X」「X以内」「不超过X」「X内」「降到X」→ 总价严格≤X，绝对不能超。无预算则不限。\n");
+        sb.append("3. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
         sb.append("软偏好（优先但不排斥其他）：\n");
         sb.append("3. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n\n");
         sb.append("推荐原则：\n");
