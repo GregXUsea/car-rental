@@ -4,6 +4,7 @@ import com.carrental.dto.AIRecommendRequest;
 import com.carrental.dto.AIRecommendResult;
 import com.carrental.dto.Result;
 import com.carrental.service.AIService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +18,7 @@ public class AIController {
     private AIService aiService;
 
     @PostMapping("/recommend")
-    public Result<AIRecommendResult> recommend(@RequestBody AIRecommendRequest request) {
+    public Result<AIRecommendResult> recommend(@Valid @RequestBody AIRecommendRequest request) {
         try {
             AIRecommendResult result = aiService.recommendCars(
                     request.getRequirement(), request.getConversationId(),

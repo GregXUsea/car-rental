@@ -62,7 +62,7 @@ public class AIService {
      * @return 推荐结果（含新的conversationId供追问使用）
      */
     public AIRecommendResult recommendCars(String userRequirement, String conversationId, boolean refresh) {
-        final String originalReq = userRequirement;
+        final String originalReq = userRequirement != null ? userRequirement.trim() : "";
         long startTime = System.currentTimeMillis();
         log.info("AI推荐请求: requirement=\"{}\", conversationId={}, refresh={}", originalReq, conversationId, refresh);
 
@@ -331,7 +331,16 @@ public class AIService {
             String body = new String(respBytes, StandardCharsets.UTF_8);
             log.debug("星火API原始响应: {}", body.length() > 500 ? body.substring(0, 500) + "..." : body);
             JsonNode root = objectMapper.readTree(body);
-            String content = root.path("choices").get(0).path("message").path("content").asText();
+            JsonNode choices = root.path("choices");
+            if (!choices.isArray() || choices.size() == 0) {
+                log.error("星火API返回空choices: {}", body.length() > 300 ? body.substring(0, 300) : body);
+                throw new IOException("星火API返回结果为空");
+            }
+            String content = choices.get(0).path("message").path("content").asText();
+            if (content.isEmpty()) {
+                log.error("星火API返回空content: {}", body.length() > 300 ? body.substring(0, 300) : body);
+                throw new IOException("星火API返回内容为空");
+            }
             log.debug("星火API提取内容长度: {}", content.length());
             return content;
         }
@@ -440,7 +449,7 @@ public class AIService {
         List<Map<String, String>> history = conversationStore.computeIfAbsent(convId, k -> new ArrayList<>());
 
         Map<String, String> turn = new HashMap<>();
-        turn.put("user", userMsg.length() > 200 ? userMsg.substring(0, 200) + "..." : userMsg);
+        turn.put("user", userMsg.length() > 500 ? userMsg.substring(0, 500) + "..." : userMsg);
         turn.put("assistant", aiSummary != null ? aiSummary : "");
         history.add(turn);
 

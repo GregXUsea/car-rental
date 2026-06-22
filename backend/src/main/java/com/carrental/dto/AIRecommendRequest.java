@@ -1,10 +1,12 @@
 package com.carrental.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class AIRecommendRequest {
     /** 用户自然语言需求描述 */
+    @NotBlank(message = "请输入您的用车需求")
     private String requirement;
     /** 多轮对话上下文ID，首次请求为空，后续追问携带上次返回的conversationId */
     private String conversationId;

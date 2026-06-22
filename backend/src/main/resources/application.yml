@@ -25,9 +25,9 @@ jwt:
   expiration: 86400000
 
 spark:
-  api-password: ${SPARK_API_PASSWORD:ZVpcxAOfIOOqcVvbWLji:pgMabOZjagOxrPKFoOdO}
-  base-url: ${SPARK_BASE_URL:https://spark-api-open.xf-yun.com/agent/v1}
-  model: ${SPARK_MODEL:spark-x}
+  api-password: "${SPARK_API_PASSWORD:ZVpcxAOfIOOqcVvbWLji:pgMabOZjagOxrPKFoOdO}"
+  base-url: "${SPARK_BASE_URL:https://spark-api-open.xf-yun.com/agent/v1}"
+  model: "${SPARK_MODEL:spark-x}"
 
 logging:
   level:

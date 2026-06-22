@@ -138,7 +138,7 @@
               <el-button type="primary" @click="handleFollowUp" :loading="followUpLoading" :disabled="!followUp.trim()">
                 追问
               </el-button>
-              <el-button @click="handleRetry">换一批</el-button>
+              <el-button @click="handleRefresh">换一批</el-button>
             </div>
           </div>
         </div>
@@ -243,7 +243,7 @@ const doRecommend = async (reqText, isRefresh = false) => {
       lastRequirement.value = reqText
       // 记录对话历史
       conversationHistory.value.push({
-        user: reqText.length > 100 ? reqText.substring(0, 100) + '...' : reqText,
+        user: reqText.length > 300 ? reqText.substring(0, 300) + '...' : reqText,
         assistant: res.data.summary || '已为您推荐'
       })
     } else {
@@ -270,12 +270,20 @@ const handleFollowUp = async () => {
   followUpLoading.value = false
 }
 
+// 错误后重新尝试（不刷新，重试同一请求）
 const handleRetry = () => {
   errorMsg.value = ''
   if (lastRequirement.value) {
-    doRecommend(lastRequirement.value, true)
+    doRecommend(lastRequirement.value, false)
   } else {
     handleRecommend()
+  }
+}
+
+// 换一批（标记refresh让AI给出不同推荐）
+const handleRefresh = () => {
+  if (lastRequirement.value) {
+    doRecommend(lastRequirement.value, true)
   }
 }
 
