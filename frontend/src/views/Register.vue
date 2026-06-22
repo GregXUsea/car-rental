@@ -5,7 +5,7 @@
       <p class="subtitle">创建您的汽车租赁账号</p>
       <el-form :model="form" :rules="rules" ref="formRef" label-position="top">
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="2-20位字符" prefix-icon="User" size="large" />
+          <el-input v-model="form.username" placeholder="2-20位，仅支持字母、数字、下划线" prefix-icon="User" size="large" />
         </el-form-item>
 
         <el-form-item label="密码" prop="password">
@@ -136,10 +136,20 @@ const validateEmail = (rule, value, callback) => {
   }
 }
 
+// 自定义校验：用户名格式
+const validateUsername = (rule, value, callback) => {
+  if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+    callback(new Error('用户名只能包含字母、数字和下划线'))
+  } else {
+    callback()
+  }
+}
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '长度2-20位', trigger: 'blur' }
+    { min: 2, max: 20, message: '长度2-20位', trigger: 'blur' },
+    { validator: validateUsername, trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
