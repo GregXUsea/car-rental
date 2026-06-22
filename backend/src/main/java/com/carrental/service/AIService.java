@@ -50,6 +50,8 @@ public class AIService {
 
     /** 多轮对话上下文存储：conversationId → 历史消息列表 */
     private final Map<String, List<Map<String, String>>> conversationStore = new ConcurrentHashMap<>();
+    /** 追踪每轮对话已推荐的车辆ID集合，用于告知AI避开 */
+    private final Map<String, Set<Long>> pastRecommendations = new ConcurrentHashMap<>();
     private static final int MAX_HISTORY_TURNS = 3; // 最多保留3轮对话
 
     // ==================== 公开方法 ====================
@@ -77,8 +79,9 @@ public class AIService {
             return empty;
         }
 
-        // 构建对话历史上下文
+        // 构建对话历史上下文 + 获取已推荐的车辆ID
         String historyContext = buildHistoryContext(conversationId);
+        Set<Long> pastCarIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
 
         // 如果 API 密码未配置，降级为本地推荐
         if (apiPassword == null || apiPassword.isBlank()) {
@@ -98,7 +101,7 @@ public class AIService {
         }
 
         // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
-        String systemPrompt = buildSystemPrompt(historyContext, refresh);
+        String systemPrompt = buildSystemPrompt(historyContext, refresh, pastCarIds);
 
         // 构建用户提示词（需求 + 车辆列表 + 可选组合）
         String userPrompt = buildUserPrompt(originalReq, availableCars, carListStr.toString());
@@ -112,9 +115,46 @@ public class AIService {
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars, originalReq);
             aiResult.setPoweredBy("AI");
 
-            // 保存对话上下文
-            String newConvId = saveConversation(conversationId, originalReq, aiResult.getSummary());
-            aiResult.setConversationId(newConvId);
+            // 程序级兜底：换一批时过滤掉已推荐过的车辆
+            Set<Long> allPastIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
+            if (refresh && !allPastIds.isEmpty() && aiResult.getRecommendations() != null) {
+                List<AIRecommendResult.RecommendItem> freshItems = new ArrayList<>();
+                Set<Long> newCarIds = new HashSet<>();
+                for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
+                    if (item.getCars() == null || item.getCars().isEmpty()) continue;
+                    Set<Long> itemCarIds = item.getCars().stream().map(Car::getId).collect(Collectors.toSet());
+                    itemCarIds.removeAll(allPastIds); // 去掉已推荐的
+                    if (!itemCarIds.isEmpty()) {
+                        freshItems.add(item);
+                        newCarIds.addAll(itemCarIds);
+                    }
+                }
+                if (freshItems.isEmpty()) {
+                    log.info("换一批：所有方案均与上批重复，返回暂无其他方案");
+                    AIRecommendResult noMore = new AIRecommendResult();
+                    noMore.setSummary("暂无其他方案——当前可选车辆中，除已推荐的外没有其他匹配方案。您可以调整预算或需求条件后重试。");
+                    noMore.setPoweredBy("AI");
+                    noMore.setConversationId(conversationId);
+                    noMore.setRecommendations(Collections.emptyList());
+                    return noMore;
+                }
+                aiResult.setRecommendations(freshItems);
+                // 保存对话上下文（用过滤后的车辆ID）
+                String newConvId = saveConversation(conversationId, originalReq, aiResult.getSummary(), newCarIds);
+                aiResult.setConversationId(newConvId);
+            } else {
+                // 提取本次推荐所有车辆ID并保存
+                Set<Long> thisCarIds = new HashSet<>();
+                if (aiResult.getRecommendations() != null) {
+                    for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
+                        if (item.getCars() != null) {
+                            item.getCars().forEach(c -> thisCarIds.add(c.getId()));
+                        }
+                    }
+                }
+                String newConvId = saveConversation(conversationId, originalReq, aiResult.getSummary(), thisCarIds);
+                aiResult.setConversationId(newConvId);
+            }
 
             return aiResult;
         } catch (Exception e) {
@@ -176,23 +216,28 @@ public class AIService {
     /**
      * 构建系统提示词
      */
-    private String buildSystemPrompt(String historyContext, boolean refresh) {
+    private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐，尽量推荐满5个方案。\n\n");
+        sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐最匹配的方案。\n\n");
         sb.append("硬约束（必须满足）：\n");
-        sb.append("1. 「N人」→ 总座位≥N。单车不够可组合多辆，用carIds数组。\n");
-        sb.append("2. 「X以内」「不超过X」「预算X」→ 总价≤X。无预算则不限。\n\n");
+        sb.append("1. 「N人」→ 总座位≥N。仅当用户明确需要多人出行且单车座位不足时，才推荐多车组合。\n");
+        sb.append("2. 「X以内」「不超过X」「预算X」→ 总价≤X。无预算则不限。\n");
+        sb.append("3. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
         sb.append("软偏好（优先但不排斥其他）：\n");
-        sb.append("3. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n");
-        sb.append("   例如5人+大空间：7座MPV优先，但后排宽敞的5座轿车也可推荐。\n\n");
+        sb.append("4. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n\n");
         sb.append("推荐原则：\n");
-        sb.append("4. 按匹配度排序，推荐3~5个方案，覆盖不同价位、品牌、座位数，让用户有对比空间。\n");
-        sb.append("5. budget内方案不够才推荐超预算的，并注明超了多少。\n");
-        sb.append("6. reason写明：几辆什么车、总座位、总价、为何适合。\n");
-        sb.append("7. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
+        sb.append("5. 按匹配度排序，推荐3~5个方案，覆盖不同价位和品牌。\n");
+        sb.append("6. 若预算内可选车型不足，如实返回实际匹配的方案即可，不要强行凑数或拼凑不合理的组合。\n");
+        sb.append("7. budget内方案不够才推荐超预算的，并注明超了多少。\n");
+        sb.append("8. reason写明：什么车、总座位、总价、为何适合。\n");
+        sb.append("9. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
 
-        if (refresh) {
-            sb.append("！！！用户点了「换一批」，务必推荐与上次完全不同的方案！\n\n");
+        // 已推荐过的车辆ID列表，让AI避开
+        if (refresh && pastCarIds != null && !pastCarIds.isEmpty()) {
+            sb.append("！！！用户点了「换一批」，以下车辆ID已在上批推荐过，请务必从可用车辆中排除这些ID：");
+            sb.append(pastCarIds.stream().map(String::valueOf).collect(Collectors.joining(", ")));
+            sb.append("\n");
+            sb.append("若排除后无其他匹配方案，summary中如实说明\"暂无其他方案\"，recommendations返回空数组[]。\n\n");
         }
 
         if (historyContext != null && !historyContext.isEmpty()) {
@@ -439,9 +484,9 @@ public class AIService {
     }
 
     /**
-     * 保存对话记录，返回新的conversationId
+     * 保存对话记录和已推荐车辆ID，返回新的conversationId
      */
-    private String saveConversation(String existingId, String userMsg, String aiSummary) {
+    private String saveConversation(String existingId, String userMsg, String aiSummary, Set<Long> carIds) {
         String convId = (existingId != null && !existingId.isEmpty())
                 ? existingId
                 : UUID.randomUUID().toString().replace("-", "").substring(0, 8);
@@ -452,6 +497,11 @@ public class AIService {
         turn.put("user", userMsg.length() > 500 ? userMsg.substring(0, 500) + "..." : userMsg);
         turn.put("assistant", aiSummary != null ? aiSummary : "");
         history.add(turn);
+
+        // 记录已推荐车辆ID（合并而非覆盖，支持多轮累积）
+        if (carIds != null && !carIds.isEmpty()) {
+            pastRecommendations.computeIfAbsent(convId, k -> new HashSet<>()).addAll(carIds);
+        }
 
         // 限制历史轮数
         while (history.size() > MAX_HISTORY_TURNS * 2) {

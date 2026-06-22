@@ -70,7 +70,7 @@
 
           <!-- 空结果 -->
           <el-empty v-if="!result.recommendations || result.recommendations.length === 0"
-            description="未找到完全匹配的车辆，请尝试调整您的需求条件">
+            :description="result.summary || '未找到完全匹配的车辆，请尝试调整您的需求条件'">
             <el-button type="primary" @click="requirement = ''; result = null; errorMsg = ''">重新输入</el-button>
           </el-empty>
 
