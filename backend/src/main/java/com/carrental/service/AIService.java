@@ -83,12 +83,10 @@ public class AIService {
         String historyContext = buildHistoryContext(conversationId);
         Set<Long> pastCarIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
 
-        // 如果 API 密码未配置，降级为本地推荐
+        // API 密码未配置时直接报错，不做本地兜底
         if (apiPassword == null || apiPassword.isBlank()) {
-            log.warn("星火API密码未配置，使用本地推荐");
-            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars, historyContext);
-            localResult.setPoweredBy("本地");
-            return localResult;
+            log.error("星火API密码未配置，无法使用AI推荐");
+            throw new RuntimeException("AI推荐服务未配置，请联系管理员设置星火API密码");
         }
 
         // 构建车辆列表文本（精简：仅保留推荐所需核心字段）
@@ -164,10 +162,8 @@ public class AIService {
             return aiResult;
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
-            log.error("星火API调用失败(耗时{}ms)，降级为本地推荐: {}", elapsed, e.getMessage());
-            AIRecommendResult localResult = fallbackRecommend(originalReq, availableCars, historyContext);
-            localResult.setPoweredBy("本地");
-            return localResult;
+            log.error("星火API调用失败(耗时{}ms): {}", elapsed, e.getMessage());
+            throw new RuntimeException("AI推荐服务暂时不可用，请稍后重试: " + e.getMessage());
         }
     }
 
@@ -452,17 +448,25 @@ public class AIService {
                 }
             }
 
-            // 如果AI没有返回有效推荐，降级
+            // AI没有返回有效推荐
             if (items.isEmpty()) {
-                log.warn("AI未返回有效推荐项，降级为本地推荐");
-                return fallbackRecommend(originalReq, availableCars, "");
+                log.warn("AI未返回有效推荐项");
+                AIRecommendResult emptyResult = new AIRecommendResult();
+                emptyResult.setSummary("AI暂未找到匹配的车辆方案，请尝试调整需求条件后重试。");
+                emptyResult.setPoweredBy("AI");
+                emptyResult.setRecommendations(Collections.emptyList());
+                return emptyResult;
             }
 
             result.setRecommendations(items);
             return result;
         } catch (Exception e) {
             log.error("解析AI推荐结果失败: {}", e.getMessage());
-            return fallbackRecommend(originalReq, availableCars, "");
+            AIRecommendResult errorResult = new AIRecommendResult();
+            errorResult.setSummary("AI返回结果解析失败，请重试或调整需求描述。");
+            errorResult.setPoweredBy("AI");
+            errorResult.setRecommendations(Collections.emptyList());
+            return errorResult;
         }
     }
 
