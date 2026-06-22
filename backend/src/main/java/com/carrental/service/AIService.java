@@ -83,6 +83,29 @@ public class AIService {
         String historyContext = buildHistoryContext(conversationId);
         Set<Long> pastCarIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
 
+        // 程序级预算硬过滤：从需求中提取预算，只保留预算内车辆
+        int budget = getBudget(originalReq);
+        // 如果是追问且当前需求未明确预算，尝试从对话历史中提取
+        if (budget == 0 && historyContext != null && !historyContext.isEmpty()) {
+            budget = getBudget(extractLastUserRequirement(historyContext));
+        }
+        final int finalBudget = budget;
+        if (finalBudget > 0) {
+            List<Car> withinBudget = availableCars.stream()
+                    .filter(c -> c.getPricePerDay().intValue() <= finalBudget)
+                    .collect(Collectors.toList());
+            log.info("预算过滤: ≤{}元/天, 过滤前{}辆 → 过滤后{}辆", finalBudget, availableCars.size(), withinBudget.size());
+            if (withinBudget.isEmpty()) {
+                AIRecommendResult noBudget = new AIRecommendResult();
+                noBudget.setSummary(String.format("抱歉，预算≤¥%d/天范围内暂无可用车辆，建议放宽预算后重试。", finalBudget));
+                noBudget.setPoweredBy("系统");
+                noBudget.setConversationId(conversationId);
+                noBudget.setRecommendations(Collections.emptyList());
+                return noBudget;
+            }
+            availableCars = withinBudget;
+        }
+
         // 如果 API 密码未配置，降级为本地推荐
         if (apiPassword == null || apiPassword.isBlank()) {
             log.warn("星火API密码未配置，使用本地推荐");
@@ -101,7 +124,7 @@ public class AIService {
         }
 
         // 构建系统提示词（核心：让星火模型做需求理解+匹配+排序）
-        String systemPrompt = buildSystemPrompt(historyContext, refresh, pastCarIds);
+        String systemPrompt = buildSystemPrompt(historyContext, refresh, pastCarIds, finalBudget);
 
         // 构建用户提示词（需求 + 车辆列表 + 可选组合）
         String userPrompt = buildUserPrompt(originalReq, availableCars, carListStr.toString());
@@ -115,18 +138,21 @@ public class AIService {
             AIRecommendResult aiResult = parseRecommendResult(response, availableCars, originalReq);
             aiResult.setPoweredBy("AI");
 
-            // 程序级兜底：换一批时过滤掉已推荐过的车辆
+            // 程序级兜底：换一批时过滤掉已推荐过的车辆（真正从结果中移除）
             Set<Long> allPastIds = conversationId != null ? pastRecommendations.getOrDefault(conversationId, Collections.emptySet()) : Collections.emptySet();
             if (refresh && !allPastIds.isEmpty() && aiResult.getRecommendations() != null) {
                 List<AIRecommendResult.RecommendItem> freshItems = new ArrayList<>();
                 Set<Long> newCarIds = new HashSet<>();
                 for (AIRecommendResult.RecommendItem item : aiResult.getRecommendations()) {
                     if (item.getCars() == null || item.getCars().isEmpty()) continue;
-                    Set<Long> itemCarIds = item.getCars().stream().map(Car::getId).collect(Collectors.toSet());
-                    itemCarIds.removeAll(allPastIds); // 去掉已推荐的
-                    if (!itemCarIds.isEmpty()) {
+                    // 真正从item中移除已推荐过的车辆
+                    List<Car> freshCars = item.getCars().stream()
+                            .filter(c -> !allPastIds.contains(c.getId()))
+                            .collect(Collectors.toList());
+                    if (!freshCars.isEmpty()) {
+                        item.setCars(freshCars);
                         freshItems.add(item);
-                        newCarIds.addAll(itemCarIds);
+                        freshCars.forEach(c -> newCarIds.add(c.getId()));
                     }
                 }
                 if (freshItems.isEmpty()) {
@@ -139,7 +165,9 @@ public class AIService {
                     return noMore;
                 }
                 aiResult.setRecommendations(freshItems);
-                // 保存对话上下文（用过滤后的车辆ID）
+                log.info("换一批去重: 过滤前{}项 → 过滤后{}项, 已推荐IDs={}",
+                        aiResult.getRecommendations().size() + (aiResult.getRecommendations().size() - freshItems.size()),
+                        freshItems.size(), allPastIds);
                 String newConvId = saveConversation(conversationId, originalReq, aiResult.getSummary(), newCarIds);
                 aiResult.setConversationId(newConvId);
             } else {
@@ -216,19 +244,23 @@ public class AIService {
     /**
      * 构建系统提示词
      */
-    private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds) {
+    private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds, int budget) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐最匹配的方案。\n\n");
+        sb.append("当前可用车辆均已筛选在预算范围内");
+        if (budget > 0) {
+            sb.append("（≤¥").append(budget).append("/天）");
+        }
+        sb.append("，无需再考虑价格约束。\n\n");
         sb.append("硬约束（必须满足）：\n");
         sb.append("1. 「N人」→ 总座位≥N。仅当用户明确需要多人出行且单车座位不足时，才推荐多车组合。\n");
-        sb.append("2. 「X以内」「不超过X」「预算X」「X内」→ 总价严格≤X，一毛钱都不能超。无预算则不限。\n");
-        sb.append("3. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
+        sb.append("2. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
         sb.append("软偏好（优先但不排斥其他）：\n");
-        sb.append("4. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n\n");
+        sb.append("3. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n\n");
         sb.append("推荐原则：\n");
-        sb.append("5. 按匹配度排序，尽量推荐3~5个方案覆盖不同价位和品牌；匹配度不够时2个也行，不要凑不满足条件的。\n");
-        sb.append("6. reason写明：什么车、总座位、总价、为何适合。\n");
-        sb.append("7. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
+        sb.append("4. 按匹配度排序，尽量推荐3~5个方案覆盖不同价位和品牌；匹配度不够时2个也行，不要凑不满足条件的。\n");
+        sb.append("5. reason写明：什么车、总座位、总价、为何适合。\n");
+        sb.append("6. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
 
         // 已推荐过的车辆ID列表，让AI避开
         if (refresh && pastCarIds != null && !pastCarIds.isEmpty()) {
@@ -618,20 +650,20 @@ public class AIService {
         if (req == null) return 0;
         java.util.regex.Pattern p;
         java.util.regex.Matcher m;
-        // "预算500"、"预算 500"
-        p = java.util.regex.Pattern.compile("预算\\s*(\\d+)");
+        // "预算500"、"预算 500"、"预算降到500"、"预算降到 500"
+        p = java.util.regex.Pattern.compile("预算(?:降到)?\\s*(\\d+)");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
-        // "500元/天"、"500/天"
-        p = java.util.regex.Pattern.compile("(\\d+)\\s*元?/天");
+        // "降到500"、"降到500以内"、"降到 500内"、"500以内"、"500内"、"500以下"、"500之内"
+        p = java.util.regex.Pattern.compile("(?:降到\\s*)?(\\d+)\\s*(?:以?内|以下|之内)?");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
         // "不超过500"、"不大于500"、"不高于500"
         p = java.util.regex.Pattern.compile("(?:不超过|不大于|不高于)\\s*(\\d+)");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
-        // "500以内"、"500以下"、"500之内"
-        p = java.util.regex.Pattern.compile("(\\d+)\\s*(?:以内|以下|之内)");
+        // "500元/天"、"500/天"
+        p = java.util.regex.Pattern.compile("(\\d+)\\s*元?/天");
         m = p.matcher(req);
         if (m.find()) return Integer.parseInt(m.group(1));
         // "500左右"
