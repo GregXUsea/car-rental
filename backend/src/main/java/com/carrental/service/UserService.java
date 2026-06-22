@@ -64,10 +64,11 @@ public class UserService {
     public Result<String> updateUser(Long userId, UpdateUserDTO dto) {
         User user = userMapper.selectById(userId);
         if (user == null) return Result.error("用户不存在");
-        if (dto.getNickname() != null) user.setNickname(dto.getNickname());
-        if (dto.getPhone() != null) user.setPhone(dto.getPhone());
-        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
-        if (dto.getAvatar() != null) user.setAvatar(dto.getAvatar());
+        // 仅更新非空字段，空白字符串视为不修改（置null）
+        if (dto.getNickname() != null) user.setNickname(dto.getNickname().isBlank() ? null : dto.getNickname());
+        if (dto.getPhone() != null) user.setPhone(dto.getPhone().isBlank() ? null : dto.getPhone());
+        if (dto.getEmail() != null) user.setEmail(dto.getEmail().isBlank() ? null : dto.getEmail());
+        if (dto.getAvatar() != null) user.setAvatar(dto.getAvatar().isBlank() ? null : dto.getAvatar());
         userMapper.updateById(user);
         return Result.success("修改成功");
     }

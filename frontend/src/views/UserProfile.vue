@@ -163,9 +163,11 @@ const validatePhone = (rule, value, callback) => {
   }
 }
 
-// 邮箱校验
+// 邮箱校验（必填，用于找回密码）
 const validateEmail = (rule, value, callback) => {
-  if (value && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+  if (!value) {
+    callback(new Error('邮箱不能为空，找回密码需要使用邮箱'))
+  } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
     callback(new Error('请输入正确的邮箱地址'))
   } else {
     callback()
@@ -174,7 +176,10 @@ const validateEmail = (rule, value, callback) => {
 
 const editRules = {
   phone: [{ validator: validatePhone, trigger: 'blur' }],
-  email: [{ validator: validateEmail, trigger: 'blur' }]
+  email: [
+    { required: true, message: '邮箱不能为空，找回密码需要使用邮箱', trigger: 'blur' },
+    { validator: validateEmail, trigger: 'blur' }
+  ]
 }
 
 onMounted(async () => {
