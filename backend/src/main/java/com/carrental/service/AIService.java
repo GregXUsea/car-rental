@@ -168,23 +168,29 @@ public class AIService {
     private String buildSystemPrompt(String historyContext, boolean refresh, Set<Long> pastCarIds) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是汽车租赁顾问。根据用户需求从可用车辆中推荐最匹配的方案。\n\n");
-        sb.append("硬约束（必须满足）：\n");
-        sb.append("1. 「N人」→ 总座位≥N。仅当用户明确需要多人出行且单车座位不足时，才推荐多车组合。\n");
-        sb.append("2. 「预算X」「X以内」「不超过X」「X内」「降到X」→ 总价严格≤X，绝对不能超。无预算则不限。\n");
-        sb.append("3. 商务接待、个人代步、通勤等单人/少数人场景，只推荐单车方案，禁止拼凑多车组合。\n\n");
-        sb.append("软偏好（优先但不排斥其他）：\n");
-        sb.append("3. 「大空间」「豪华」「省油」「SUV」等是偏好描述，优先匹配但不是硬性排除条件。\n\n");
-        sb.append("推荐原则：\n");
-        sb.append("4. 按匹配度排序，尽量推荐3~5个方案覆盖不同价位和品牌；匹配度不够时2个也行，不要凑不满足条件的。\n");
-        sb.append("5. reason写明：什么车、总座位、总价、为何适合。\n");
-        sb.append("6. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n\n");
+        sb.append("=== 硬约束（违反任何一条的推荐视为错误） ===\n");
+        sb.append("1. 座位：用户提「N人」→ 总座位≥N。仅当单车座位不足时才能推荐多车组合。\n");
+        sb.append("2. 预算：用户提任何金额上限（「预算X」「X以内」「不超过X」「降到X内」「X内」等），每辆推荐车的价格必须≤X元/天。注意用户说「降到X」意味着新的预算上限是X，必须遵守。超1元也不行。\n");
+        sb.append("   示例：预算400 → 只能推荐日租≤400的车，389可以，438不行。\n");
+        sb.append("3. 场景：商务接待/通勤/代步等单人少数人场景，只推荐单车，禁止拼凑多车。\n\n");
+        sb.append("=== 软偏好（优先但不硬性排除） ===\n");
+        sb.append("4. 「豪华」「省油」「SUV」「大空间」等是偏好描述，优先匹配但不强制。\n\n");
+        sb.append("=== 输出规范 ===\n");
+        sb.append("5. 按匹配度从高到低排序，推荐3~5个方案（不够2个也行，不凑数）。\n");
+        sb.append("6. reason格式：「品牌车型，X座，¥X/天，[一句话说明为何适合]」。必须写明实际价格。\n");
+        sb.append("7. matchScore用中文：「完美匹配」「高匹配度」「经济之选」「宽敞舒适」等。\n");
+        sb.append("8. summary只写推荐理由（≤3句话），不要重复，不要提「不推荐XX」，不要列排除的车辆。\n");
+        sb.append("9. 每条reason必须独立验证：价格≤预算？座位≥需求？验证通过才能推荐。\n\n");
 
-        // 已推荐过的车辆ID列表，让AI避开
-        if (refresh && pastCarIds != null && !pastCarIds.isEmpty()) {
-            sb.append("！！！用户点了「换一批」，以下车辆ID已在上批推荐过，请务必从可用车辆中排除这些ID：");
+        // 已有推荐记录时告知AI避开（无论是换一批还是追问）
+        if (pastCarIds != null && !pastCarIds.isEmpty()) {
+            sb.append("！！！以下车辆ID已在之前的推荐中出现过，请务必避开，从可用车辆中排除这些ID：");
             sb.append(pastCarIds.stream().map(String::valueOf).collect(Collectors.joining(", ")));
             sb.append("\n");
-            sb.append("若排除后无其他匹配方案，summary中如实说明\"暂无其他方案\"，recommendations返回空数组[]。\n\n");
+            if (refresh) {
+                sb.append("若排除后无其他匹配方案，summary中如实说明\"暂无其他方案\"，recommendations返回空数组[]。\n");
+            }
+            sb.append("\n");
         }
 
         if (historyContext != null && !historyContext.isEmpty()) {
