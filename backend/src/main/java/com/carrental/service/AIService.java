@@ -299,6 +299,7 @@ public class AIService {
                 Map.of("role", "user", "content", userPrompt)));
         requestBody.put("temperature", 0.3);
         requestBody.put("max_tokens", 2000);
+        requestBody.put("thinking", Map.of("type", "disabled"));  // 禁用深度思考，避免token全耗在reasoning_content上
 
         String json = objectMapper.writeValueAsString(requestBody);
 
