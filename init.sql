@@ -56,20 +56,6 @@ CREATE TABLE `orders` (
   KEY `idx_car_id` (`car_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 维护记录表
-DROP TABLE IF EXISTS `maintenance_records`;
-CREATE TABLE `maintenance_records` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `car_id` BIGINT NOT NULL,
-  `mileage_at_maintenance` INT NOT NULL,
-  `maintenance_type` VARCHAR(50) NOT NULL,
-  `description` TEXT,
-  `cost` DECIMAL(10,2) DEFAULT 0,
-  `maintenance_date` DATE NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_car_id` (`car_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- 注意：用户账号由应用启动时自动创建，无需在此手动插入
 -- 默认账号: admin/admin123(管理员), zhangsan/user123(普通用户), lisi/user123(普通用户)
 
@@ -89,21 +75,6 @@ INSERT INTO `cars` (`brand`, `model`, `color`, `seats`, `price_per_day`, `deposi
 ('蔚来', 'ES6 2024款', '蓝色', 5, 368.00, 5000.00, '/img/es6.jpg', 0, 12000, '2026-03-01', '纯电SUV，换电服务，智能座舱体验出色', '新能源'),
 ('丰田', '赛那 2024款', '白色', 7, 358.00, 4000.00, '/img/sienna.jpg', 1, 29000, '2025-11-25', '混动MPV，油耗极低，全家出行神器', 'MPV'),
 ('理想', 'L7 2024款', '银色', 6, 398.00, 5000.00, '/img/l7.jpg', 0, 16000, '2026-02-15', '增程式SUV，大空间，家庭旗舰，长途无焦虑', '新能源');
-
--- 插入维护记录
-INSERT INTO `maintenance_records` (`car_id`, `mileage_at_maintenance`, `maintenance_type`, `description`, `cost`, `maintenance_date`) VALUES
-(1, 10000, '常规保养', '更换机油机滤，检查刹车片', 680.00, '2025-03-15'),
-(1, 20000, '常规保养', '更换机油机滤、空气滤芯', 850.00, '2025-07-20'),
-(1, 30000, '大保养', '更换机油三滤、刹车油、火花塞', 1800.00, '2025-12-01'),
-(3, 15000, '常规保养', '更换机油机滤', 720.00, '2025-04-10'),
-(3, 30000, '常规保养', '更换机油机滤、空调滤芯', 900.00, '2025-08-15'),
-(3, 45000, '大保养', '更换机油三滤、变速箱油、刹车片', 2200.00, '2025-10-20'),
-(7, 10000, '常规保养', '更换机油机滤', 650.00, '2025-02-20'),
-(7, 20000, '常规保养', '更换机油三滤', 880.00, '2025-06-10'),
-(7, 40000, '大保养', '全车检查、更换刹车油防冻液', 1500.00, '2025-10-15'),
-(11, 10000, '常规检查', '检查电池状态、更换空调滤芯', 400.00, '2025-04-01'),
-(11, 20000, '常规保养', '更换刹车油、检查底盘', 600.00, '2025-08-10'),
-(11, 35000, '轮胎更换', '更换四条轮胎', 3200.00, '2025-12-20');
 
 -- 插入测试订单
 INSERT INTO `orders` (`order_no`, `user_id`, `car_id`, `start_time`, `end_time`, `actual_return_time`, `total_cost`, `deposit`, `status`) VALUES

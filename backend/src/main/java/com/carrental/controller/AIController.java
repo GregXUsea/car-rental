@@ -8,8 +8,6 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/ai")
 public class AIController {
@@ -29,12 +27,4 @@ public class AIController {
         }
     }
 
-    @GetMapping("/maintenance/{carId}")
-    public Result<Map<String, Object>> maintenancePrediction(@PathVariable Long carId) {
-        try {
-            return Result.success(aiService.getMaintenancePrediction(carId));
-        } catch (Exception e) {
-            return Result.error("维护预测服务暂时不可用: " + e.getMessage());
-        }
-    }
 }
