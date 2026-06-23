@@ -182,15 +182,12 @@ public class AIService {
         sb.append("8. summary只写推荐理由（≤3句话），不要重复，不要提「不推荐XX」，不要列排除的车辆。\n");
         sb.append("9. 每条reason必须独立验证：价格≤预算？座位≥需求？验证通过才能推荐。\n\n");
 
-        // 已有推荐记录时告知AI避开（无论是换一批还是追问）
-        if (pastCarIds != null && !pastCarIds.isEmpty()) {
-            sb.append("！！！以下车辆ID已在之前的推荐中出现过，请务必避开，从可用车辆中排除这些ID：");
+        // 换一批时告知AI避开已推荐过的车辆
+        if (refresh && pastCarIds != null && !pastCarIds.isEmpty()) {
+            sb.append("！！！用户点了「换一批」，以下车辆ID已在上批推荐过，请务必从可用车辆中排除这些ID：");
             sb.append(pastCarIds.stream().map(String::valueOf).collect(Collectors.joining(", ")));
             sb.append("\n");
-            if (refresh) {
-                sb.append("若排除后无其他匹配方案，summary中如实说明\"暂无其他方案\"，recommendations返回空数组[]。\n");
-            }
-            sb.append("\n");
+            sb.append("若排除后无其他匹配方案，summary中如实说明\"暂无其他方案\"，recommendations返回空数组[]。\n\n");
         }
 
         if (historyContext != null && !historyContext.isEmpty()) {
