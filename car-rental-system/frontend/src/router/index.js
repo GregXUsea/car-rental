@@ -40,6 +40,18 @@ const routes = [
     name: 'AIAssistant',
     component: () => import('../views/AIAssistant.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/drivers',
+    name: 'DriverManage',
+    component: () => import('../views/DriverManage.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/maintenance',
+    name: 'MaintenanceDashboard',
+    component: () => import('../views/MaintenanceDashboard.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

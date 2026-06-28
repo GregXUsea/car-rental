@@ -25,9 +25,19 @@ jwt:
   expiration: 86400000
 
 openai:
-  api-key: ${OPENAI_API_KEY:sk-your-api-key-here}
-  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-  model: ${OPENAI_MODEL:gpt-3.5-turbo}
+  api-key: ${OPENAI_API_KEY:sk-06b67a5a9e384b5d9b36fc36a80f7087}
+  base-url: ${OPENAI_BASE_URL:https://api.deepseek.com/v1}
+  model: ${OPENAI_MODEL:deepseek-chat}
+
+# 邮箱SMTP配置（QQ邮箱示例）
+# 第1步：登录 mail.qq.com → 设置 → 账户 → 开启POP3/SMTP服务 → 获取授权码
+# 第2步：把下面的 your-email@qq.com 改成你的QQ邮箱，授权码改成你刚获取的
+mail:
+  host: smtp.qq.com
+  port: 465
+  username: 3534313902@qq.com
+  password: kwouspzaypsncidc
+  from: 3534313902@qq.com
 
 logging:
   level:

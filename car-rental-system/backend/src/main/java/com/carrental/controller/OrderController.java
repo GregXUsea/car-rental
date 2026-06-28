@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -55,6 +56,29 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/pay-deposit/{id}")
+    public Result<Order> payDeposit(@PathVariable Long id) {
+        try {
+            return Result.success(orderService.payDeposit(id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pay-rental/{id}")
+    public Result<Order> payRental(@PathVariable Long id) {
+        try {
+            return Result.success(orderService.payRental(id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/slots/{carId}")
+    public Result<List<Map<String, Object>>> getOccupiedSlots(@PathVariable Long carId) {
+        return Result.success(orderService.getOccupiedSlots(carId));
+    }
+
     @PostMapping("/return/{id}")
     public Result<Order> returnCar(@PathVariable Long id) {
         try {
@@ -65,9 +89,27 @@ public class OrderController {
     }
 
     @PostMapping("/cancel/{id}")
-    public Result<Order> cancel(@PathVariable Long id) {
+    public Result<Order> cancel(@PathVariable Long id, HttpServletRequest request) {
         try {
-            return Result.success(orderService.cancelOrder(id));
+            Long userId = (Long) request.getAttribute("userId");
+            return Result.success(orderService.cancelOrder(id, userId));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/cancel-info/{id}")
+    public Result<Map<String, Object>> cancelInfo(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(orderService.getCancelInfo(id, userId));
+    }
+
+    @PostMapping("/rate/{id}")
+    public Result<Order> rate(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
+        try {
+            Integer rating = (Integer) body.get("rating");
+            String comment = (String) body.get("comment");
+            return Result.success(orderService.rateOrder(id, rating, comment));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

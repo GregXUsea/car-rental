@@ -13,4 +13,7 @@ public class RentDTO {
     @NotNull(message = "结束时间不能为空")
     private LocalDateTime endTime;
     private Boolean isReservation;
+    private Long driverId;
+    private String remark;
+    private Integer startMileage;
 }

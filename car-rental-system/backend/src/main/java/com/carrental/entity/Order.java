@@ -13,17 +13,34 @@ public class Order {
     private String orderNo;
     private Long userId;
     private Long carId;
+    private Long driverId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private LocalDateTime actualReturnTime;
     private BigDecimal totalCost;
+    private BigDecimal driverCost;
     private BigDecimal deposit;
+    private BigDecimal depositRefund;
     private Integer status;
+    private String remark;
+    private Integer userRating;
+    private String userComment;
+    private Integer startMileage;
+    private Integer endMileage;
+    private Integer mileageDriven;
+    private BigDecimal discount;
+    private Integer depositPaid;
+    private Integer rentalPaid;
+    private LocalDateTime depositPaidTime;
+    private LocalDateTime rentalPaidTime;
+    private LocalDateTime cancelTime;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
     @TableField(exist = false)
     private Car car;
+    @TableField(exist = false)
+    private Driver driver;
     @TableField(exist = false)
     private String username;
 }

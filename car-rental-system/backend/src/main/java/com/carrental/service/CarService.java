@@ -23,6 +23,12 @@ public class CarService {
                 new LambdaQueryWrapper<Car>().eq(Car::getStatus, 0));
     }
 
+    /** 可租用车辆：排除维护中(3) */
+    public List<Car> listRentable() {
+        return carMapper.selectList(
+                new LambdaQueryWrapper<Car>().ne(Car::getStatus, 3));
+    }
+
     public Car getById(Long id) {
         return carMapper.selectById(id);
     }
@@ -45,5 +51,12 @@ public class CarService {
     public List<Car> listByStatus(Integer status) {
         return carMapper.selectList(
                 new LambdaQueryWrapper<Car>().eq(Car::getStatus, status));
+    }
+
+    public void updateMileage(Long carId, int mileage) {
+        Car car = new Car();
+        car.setId(carId);
+        car.setMileage(mileage);
+        carMapper.updateById(car);
     }
 }

@@ -1,152 +1,594 @@
 <template>
   <div class="ai-page">
-    <header class="header">
-      <div class="header-content">
-        <el-button text @click="$router.push('/')"><el-icon><ArrowLeft /></el-icon> 返回首页</el-button>
-        <h1><el-icon><MagicStick /></el-icon> AI智能选车助手</h1>
-        <div></div>
+    <!-- 左侧边栏 -->
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
+      <div class="sidebar-header">
+        <button class="new-chat-btn" @click="createNewChat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新对话
+        </button>
       </div>
-    </header>
-
-    <main class="main">
-      <div class="ai-card">
-        <div class="input-section">
-          <h2>描述您的用车需求</h2>
-          <p class="tip">例如：周末家庭出游三天，需要坐5人，预算400元/天</p>
-          <el-input
-            v-model="requirement"
-            type="textarea"
-            :rows="4"
-            placeholder="请描述您的用车需求，包括人数、用途、预算、时间等..."
-          />
-          <el-button type="primary" size="large" @click="handleRecommend" :loading="loading" style="margin-top: 16px; width: 100%;">
-            <el-icon><MagicStick /></el-icon> AI智能推荐
-          </el-button>
+      <div class="sidebar-list">
+        <div
+          v-for="conv in conversations"
+          :key="conv.id"
+          class="sidebar-item"
+          :class="{ active: currentConvId === conv.id }"
+          @click="switchConversation(conv.id)"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span class="item-title">{{ conv.title }}</span>
         </div>
+        <div v-if="conversations.length === 0" class="sidebar-empty">
+          <p>暂无历史对话</p>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="back-home-btn" @click="$router.push('/')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          返回首页
+        </button>
+      </div>
+    </aside>
 
-        <div v-if="result" class="result-section">
-          <el-alert :title="result.summary" type="success" :closable="false" show-icon style="margin-bottom: 20px;" />
+    <!-- 右侧聊天区 -->
+    <div class="chat-main">
+      <!-- 顶部标题栏 -->
+      <div class="chat-header">
+        <button class="toggle-sidebar-btn" @click="toggleSidebar" title="切换侧边栏">
+          <svg v-if="sidebarOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="chat-title-area">
+          <h1>AI智能选车助手</h1>
+          <p class="ai-disclaimer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            AI 生成内容可能有误，请以实际信息为准 · 如果不想选车，也可以和我聊聊其他话题
+          </p>
+        </div>
+      </div>
 
-          <div class="recommend-list">
-            <div v-for="(item, index) in result.recommendations" :key="index" class="recommend-card">
-              <div class="rank">{{ index + 1 }}</div>
-              <div class="car-img-wrapper">
-                <img :src="item.car?.image" :alt="item.car?.brand" class="car-img" @error="handleImgError($event)" />
-              </div>
-              <div class="recommend-info">
-                <h3>{{ item.car?.brand }} {{ item.car?.model }}</h3>
-                <p class="reason">{{ item.reason }}</p>
-                <div class="meta">
-                  <el-tag type="success">{{ item.matchScore }}</el-tag>
-                  <span class="price">¥{{ item.car?.pricePerDay }}/天</span>
-                  <span>{{ item.car?.seats }}座 · {{ item.car?.category }}</span>
-                </div>
-                <el-button type="primary" size="small" @click="$router.push(`/car/${item.car?.id}`)">查看详情</el-button>
-              </div>
+      <!-- 对话内容区 -->
+      <div class="chat-body" ref="chatArea">
+        <!-- 欢迎区 -->
+        <div v-if="messages.length === 0" class="welcome-section">
+          <div class="welcome-avatar">
+            <img src="/img/ai-avatar.png" alt="AI" />
+          </div>
+          <h2>你好，我是AI助手</h2>
+          <p>我可以为您推荐车型、解答租车问题，也可以回答其他问题</p>
+          <div class="example-cards">
+            <div v-for="(ex, i) in examples" :key="i" class="example-card" @click="sendMessage(ex.text)">
+              <span class="ex-text">{{ ex.text }}</span>
             </div>
           </div>
         </div>
 
-        <div class="example-section" v-if="!result && !loading">
-          <h3>试试这些需求：</h3>
-          <div class="examples">
-            <el-button v-for="ex in examples" :key="ex" @click="requirement = ex" text class="example-btn">
-              "{{ ex }}"
-            </el-button>
+        <!-- 对话区 -->
+        <div v-else class="messages-area">
+          <div v-for="(msg, i) in messages" :key="i" :class="['message', msg.role]">
+            <div class="msg-avatar ai-msg-avatar" v-if="msg.role === 'ai'">
+              <img src="/img/ai-avatar.png" alt="AI" class="ai-avatar-img" />
+            </div>
+            <div class="msg-avatar user-msg-avatar" v-else>
+              <img v-if="userAvatar" :src="userAvatar" class="user-avatar-img" />
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="msg-content">
+              <!-- 用户消息 -->
+              <div v-if="msg.role === 'user'" class="user-text">{{ msg.text }}</div>
+              <!-- AI回复 - 文本 -->
+              <div v-else-if="msg.type === 'text' || (!msg.type && !msg.result)" class="ai-text-response">
+                <div v-if="msg.loading" class="typing-indicator">
+                  <span></span><span></span><span></span>
+                </div>
+                <div v-else class="ai-text" v-html="formatText(msg.reply)"></div>
+              </div>
+              <!-- AI回复 - 推荐结果 -->
+              <div v-else class="ai-response">
+                <div class="ai-summary" v-if="msg.result?.summary">
+                  <p>{{ msg.result.summary }}</p>
+                </div>
+                <div class="recommend-cards" v-if="msg.result?.recommendations?.length">
+                  <div v-for="(item, idx) in msg.result.recommendations" :key="idx" class="recommend-card">
+                    <div class="card-header">
+                      <span class="rank" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
+                      <div class="card-title">
+                        <h3>{{ item.car?.brand }} {{ item.car?.model }}</h3>
+                        <div class="card-tags">
+                          <span class="tag category">{{ item.car?.category }}</span>
+                          <span class="tag seats">{{ item.car?.seats }}座</span>
+                          <span v-if="item.car?.usageType?.includes('商务')" class="tag business">商务</span>
+                          <span v-if="item.car?.usageType?.includes('婚庆')" class="tag wedding">婚庆</span>
+                          <span v-if="item.car?.usageType?.includes('家庭')" class="tag family">家庭</span>
+                          <span v-if="item.car?.usageType?.includes('通勤')" class="tag commute">通勤</span>
+                        </div>
+                      </div>
+                      <div class="match-score">
+                        <div class="score-bar">
+                          <div class="score-fill" :style="{ width: item.matchScore }"></div>
+                        </div>
+                        <span class="score-text">{{ item.matchScore }}</span>
+                      </div>
+                    </div>
+                    <div class="card-body">
+                      <div class="car-img-wrap">
+                        <img :src="item.car?.image" :alt="item.car?.brand" class="car-img" :data-brand="item.car?.brand" :data-model="item.car?.model" :data-color="item.car?.color" :data-category="item.car?.category" @error="handleImgError($event)" />
+                      </div>
+                      <div class="card-info">
+                        <p class="reason">{{ item.reason }}</p>
+                        <div class="card-meta">
+                          <span class="price">¥{{ item.car?.pricePerDay }}<small>/天</small></span>
+                          <span class="deposit">押金 ¥{{ item.car?.deposit }}</span>
+                          <span class="mileage">{{ item.car?.mileage?.toLocaleString() }}km</span>
+                        </div>
+                        <el-button type="primary" size="small" @click="goToCarDetail(item.car?.id)">
+                          查看详情 & 立即租车 →
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 思考中动画 -->
+                <div v-if="msg.loading" class="thinking">
+                  <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </main>
+
+      <!-- 输入区 -->
+      <div class="input-bar">
+        <div class="input-wrap">
+          <input
+            v-model="inputText"
+            placeholder="描述您的需求或问题，如：推荐一辆商务车、租车多少钱..."
+            @keydown.enter.prevent="handleSend"
+            :disabled="loading"
+          />
+          <button class="send-btn" @click="handleSend" :disabled="!inputText.trim() || loading">
+            <svg v-if="!loading" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <div v-else class="btn-spinner"></div>
+          </button>
+        </div>
+        <p class="input-hint">按 Enter 发送 · AI基于车队实时数据为您推荐</p>
+      </div>
+    </div>
+
+    <!-- 移动端遮罩 -->
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
 
-const requirement = ref('')
+const $router = useRouter()
+
+const inputText = ref('')
 const loading = ref(false)
-const result = ref(null)
+const messages = ref([])
+const chatArea = ref(null)
+const userAvatar = ref(localStorage.getItem('userAvatar') || '')
+const sidebarOpen = ref(true) // 桌面端默认打开
+
+// 多会话管理
+const CONVERSATIONS_KEY = 'ai_conversations'
+const conversations = ref([])
+const currentConvId = ref('')
+
+// 当前是否正在创建新对话（防重复点击）
+const creatingNew = ref(false)
+
+onMounted(async () => {
+  loadConversations()
+  // 获取用户头像
+  try {
+    const res = await api.get('/user/info')
+    if (res.code === 200 && res.data.avatar) {
+      userAvatar.value = res.data.avatar
+      localStorage.setItem('userAvatar', res.data.avatar)
+    }
+  } catch (e) { /* ignore */ }
+})
 
 const examples = [
-  '周末家庭出游三天，需要坐5人，预算400元/天',
-  '商务接待客户，需要高档轿车，预算300-500元/天',
-  '一家六口人自驾游，需要大空间，预算350元/天以内',
-  '城市通勤代步，省油经济，预算200元/天以下'
+  { icon: '💼', text: '商务接待客户，需要高档黑色轿车，预算400-500元/天' },
+  { icon: '💒', text: '下个月结婚，需要婚庆头车，红色或白色豪华车型' },
+  { icon: '👨‍👩‍👧‍👦', text: '周末家庭出游三天，需要坐5人，预算400元/天' },
+  { icon: '💰', text: '租车多少钱一天？有什么优惠？' },
+  { icon: '📋', text: '租车需要什么流程？' },
+  { icon: '🔧', text: '车辆多久保养一次？' },
 ]
 
-const handleRecommend = async () => {
-  if (!requirement.value.trim()) {
-    ElMessage.warning('请输入您的用车需求')
-    return
-  }
-  loading.value = true
-  result.value = null
+// ====== 多会话管理 ======
+const loadConversations = () => {
   try {
-    const res = await api.post('/ai/recommend', { requirement: requirement.value })
-    if (res.code === 200) {
-      result.value = res.data
-    } else {
-      ElMessage.error(res.message)
+    const saved = localStorage.getItem(CONVERSATIONS_KEY)
+    if (saved) {
+      conversations.value = JSON.parse(saved)
     }
-  } catch (e) {
-    ElMessage.error('请求失败，请稍后重试')
-  } finally {
-    loading.value = false
+    // 兼容旧版单会话数据
+    if (conversations.value.length === 0) {
+      const oldHistory = localStorage.getItem('ai_chat_history')
+      if (oldHistory) {
+        const msgs = JSON.parse(oldHistory)
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          const conv = buildConvFromMessages(msgs)
+          conversations.value.push(conv)
+          saveConversations()
+        }
+        localStorage.removeItem('ai_chat_history')
+      }
+    }
+    // 选中会话：优先恢复上次活跃的会话，否则选最新
+    if (conversations.value.length > 0) {
+      const lastConvId = sessionStorage.getItem('ai_last_conv_id')
+      const target = lastConvId && conversations.value.find(c => c.id === lastConvId)
+        ? lastConvId
+        : conversations.value[0].id
+      switchConversation(target)
+    }
+  } catch (e) { /* ignore */ }
+}
+
+const saveConversations = () => {
+  try {
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations.value))
+  } catch (e) { /* ignore */ }
+}
+
+const buildConvFromMessages = (msgs) => {
+  const validMsgs = msgs.filter(m => !m.loading)
+  const firstUserMsg = validMsgs.find(m => m.role === 'user')
+  const title = extractTitle(firstUserMsg?.text || '新对话')
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title,
+    messages: validMsgs,
+    createTime: Date.now()
   }
 }
 
-const handleImgError = (e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120"><rect fill="%23e0e7ff" width="200" height="120"/><text x="100" y="70" text-anchor="middle" fill="%23667eea" font-size="40">🚗</text></svg>' }
+// 从用户第一个问题提炼标题（最多20字）
+const extractTitle = (text) => {
+  if (!text) return '新对话'
+  // 去掉标点和多余空格
+  let t = text.replace(/[，。！？、\.\,\!\?\s]+/g, ' ').trim()
+  if (t.length <= 20) return t
+  return t.slice(0, 20) + '...'
+}
+
+// 切换侧边栏显示/隐藏
+const toggleSidebar = () => {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
+// 创建新对话
+const createNewChat = () => {
+  // 如果已有空对话，直接切换过去，不重复创建
+  const emptyConv = conversations.value.find(c => c.messages.length === 0)
+  if (emptyConv) {
+    switchConversation(emptyConv.id)
+    return
+  }
+  const conv = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: '新对话',
+    messages: [],
+    createTime: Date.now()
+  }
+  conversations.value.unshift(conv)
+  saveConversations()
+  switchConversation(conv.id)
+}
+
+const switchConversation = (id) => {
+  currentConvId.value = id
+  const conv = conversations.value.find(c => c.id === id)
+  messages.value = conv ? [...conv.messages] : []
+  sessionStorage.setItem('ai_last_conv_id', id)
+  // 移动端自动收起侧边栏
+  if (window.innerWidth <= 768) sidebarOpen.value = false
+  scrollToBottom()
+}
+
+// 跳转车辆详情前保存当前对话ID，返回时恢复
+const goToCarDetail = (carId) => {
+  sessionStorage.setItem('ai_last_conv_id', currentConvId.value)
+  $router.push(`/car/${carId}`)
+}
+
+// 保存当前会话消息
+const saveCurrentMessages = () => {
+  const conv = conversations.value.find(c => c.id === currentConvId.value)
+  if (conv) {
+    conv.messages = messages.value.filter(m => !m.loading)
+    // 如果是第一条消息，更新标题
+    if (conv.messages.length === 1 && conv.messages[0].role === 'user') {
+      conv.title = extractTitle(conv.messages[0].text)
+    }
+    saveConversations()
+  }
+}
+
+// ====== 对话逻辑 ======
+const buildApiHistory = () => {
+  return messages.value
+    .filter(m => !m.loading && (m.role === 'user' || (m.role === 'ai' && m.type === 'text' && m.reply)))
+    .slice(-20)
+    .map(m => {
+      if (m.role === 'user') return { role: 'user', content: m.text }
+      return { role: 'assistant', content: m.reply || m.result?.summary || '' }
+    })
+}
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatArea.value) chatArea.value.scrollTop = chatArea.value.scrollHeight
+  })
+}
+
+const sendMessage = async (text) => {
+  if (!text.trim() || loading.value) return
+  inputText.value = ''
+
+  // 如果没有当前会话，创建一个
+  if (!currentConvId.value) {
+    createNewChat()
+  }
+
+  // 添加用户消息
+  messages.value.push({ role: 'user', text: text.trim() })
+  scrollToBottom()
+  saveCurrentMessages()
+
+  // 添加AI思考中的占位消息
+  const aiMsg = { role: 'ai', type: 'text', reply: '', result: null, loading: true }
+  messages.value.push(aiMsg)
+  scrollToBottom()
+
+  loading.value = true
+  try {
+    const history = buildApiHistory()
+    const res = await api.post('/ai/chat', { message: text.trim(), history })
+    if (res.code === 200) {
+      const data = res.data
+      aiMsg.type = data.type || 'text'
+      if (data.type === 'recommend') {
+        aiMsg.result = { summary: data.reply, recommendations: data.recommendations || [] }
+      } else {
+        aiMsg.reply = data.reply || '抱歉，我暂时无法回答这个问题。'
+      }
+    } else {
+      aiMsg.reply = '抱歉，服务暂时不可用：' + res.message
+    }
+  } catch (e) {
+    aiMsg.reply = '请求失败，请稍后重试'
+  } finally {
+    aiMsg.loading = false
+    loading.value = false
+    scrollToBottom()
+    saveCurrentMessages()
+  }
+}
+
+const handleSend = () => {
+  sendMessage(inputText.value)
+}
+
+const formatText = (text) => {
+  if (!text) return ''
+  return text.replace(/\n/g, '<br>')
+}
+
+const getBrandTheme = (brand) => {
+  const themes = {
+    '丰田': { primary: '#e74c3c', secondary: '#c0392b', bg1: '#fde8e8', bg2: '#f5b7b1' },
+    '本田': { primary: '#3498db', secondary: '#2980b9', bg1: '#d6eaf8', bg2: '#aed6f1' },
+    '大众': { primary: '#2ecc71', secondary: '#27ae60', bg1: '#d5f5e3', bg2: '#a9dfbf' },
+    '宝马': { primary: '#3498db', secondary: '#2471a3', bg1: '#d4e6f1', bg2: '#a9cce3' },
+    '奔驰': { primary: '#95a5a6', secondary: '#7f8c8d', bg1: '#ebedef', bg2: '#d5d8dc' },
+    '别克': { primary: '#e67e22', secondary: '#d35400', bg1: '#fdebd0', bg2: '#f5cba7' },
+    '比亚迪': { primary: '#1abc9c', secondary: '#16a085', bg1: '#d1f2eb', bg2: '#a3e4d7' },
+    '红旗': { primary: '#c0392b', secondary: '#922b21', bg1: '#f9ebea', bg2: '#f2d7d5' },
+    '蔚来': { primary: '#3498db', secondary: '#2471a3', bg1: '#d4e6f1', bg2: '#a9cce3' },
+    '小鹏': { primary: '#2ecc71', secondary: '#27ae60', bg1: '#d5f5e3', bg2: '#a9dfbf' },
+  }
+  return themes[brand] || { primary: '#667eea', secondary: '#5a67d8', bg1: '#e0e7ff', bg2: '#c7d2fe' }
+}
+
+const handleImgError = (e) => {
+  const brand = e.target.dataset.brand || '默认'
+  const category = e.target.dataset.category || '轿车'
+  const theme = getBrandTheme(brand)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+    <defs>
+      <linearGradient id="bg_${brand}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:${theme.bg1}"/>
+        <stop offset="100%" style="stop-color:${theme.bg2}"/>
+      </linearGradient>
+      <linearGradient id="body_${brand}" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:${theme.primary}"/>
+        <stop offset="100%" style="stop-color:${theme.secondary}"/>
+      </linearGradient>
+    </defs>
+    <rect fill="url(#bg_${brand})" width="200" height="120" rx="8"/>
+    <g transform="translate(100,55) scale(0.65)">
+      <ellipse cx="0" cy="20" rx="90" ry="8" fill="${theme.bg2}" opacity="0.6"/>
+      <path d="M-65,-10 Q-65,-35 -40,-35 L-20,-35 L0,-55 L30,-55 Q55,-55 60,-35 L70,-35 Q80,-35 80,-25 L80,-10 Q80,5 65,5 L-55,5 Q-65,5 -65,-10Z" fill="url(#body_${brand})" stroke="${theme.secondary}" stroke-width="1.5"/>
+      <circle cx="-40" cy="8" r="10" fill="#2d3748"/><circle cx="55" cy="8" r="10" fill="#2d3748"/>
+    </g>
+    <text x="100" y="108" text-anchor="middle" fill="${theme.primary}" font-size="11" font-family="system-ui,sans-serif" opacity="0.8">${brand} ${category}</text>
+  </svg>`
+  e.target.src = 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
 </script>
 
 <style scoped>
-.header { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-.header-content { max-width: 900px; margin: 0 auto; padding: 0 20px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
-.header-content h1 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
-.main { max-width: 900px; margin: 20px auto; padding: 0 20px; }
-.ai-card { background: #fff; border-radius: 12px; padding: 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
-.input-section h2 { margin-bottom: 8px; }
-.tip { color: #999; margin-bottom: 16px; font-size: 14px; }
-.result-section { margin-top: 30px; }
-.recommend-card {
-  display: flex;
-  gap: 16px;
-  padding: 20px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  align-items: flex-start;
+.ai-page { min-height: 100vh; display: flex; background: #f5f7fa; }
+
+/* ====== 左侧边栏 ====== */
+.sidebar { width: 260px; background: #1a1a2e; color: #ccc; display: flex; flex-direction: column; flex-shrink: 0; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; }
+.sidebar-header { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.new-chat-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: rgba(255,255,255,0.08); border: 1px dashed rgba(255,255,255,0.2); border-radius: 10px; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.new-chat-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.35); }
+
+.sidebar-list { flex: 1; overflow-y: auto; padding: 8px; }
+.sidebar-list::-webkit-scrollbar { width: 4px; }
+.sidebar-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+.sidebar-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; position: relative; }
+.sidebar-item:hover { background: rgba(255,255,255,0.08); }
+.sidebar-item.active { background: rgba(102,126,234,0.25); color: #fff; }
+.sidebar-item svg { flex-shrink: 0; opacity: 0.6; }
+.sidebar-item.active svg { opacity: 1; }
+.item-title { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sidebar-empty { text-align: center; padding: 40px 20px; color: #666; font-size: 13px; }
+
+.sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+.back-home-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #999; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.back-home-btn:hover { background: rgba(255,255,255,0.06); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+/* ====== 右侧聊天区 ====== */
+.chat-main { flex: 1; display: flex; flex-direction: column; margin-left: 260px; min-height: 100vh; }
+
+.chat-header { background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.06); padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+.toggle-sidebar-btn { background: none; border: none; color: #666; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.toggle-sidebar-btn:hover { background: #f0f2f5; color: #333; }
+
+.chat-title-area { flex: 1; }
+.chat-title-area h1 { font-size: 16px; font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 10px; margin: 0; }
+.welcome-avatar { margin: 0 auto 24px; }
+.welcome-avatar img { width: 96px; height: 96px; border-radius: 24px; object-fit: cover; box-shadow: 0 8px 32px rgba(102,126,234,0.2); }
+.ai-disclaimer { font-size: 12px; color: #aaa; margin: 3px 0 0; display: flex; align-items: center; gap: 4px; }
+
+
+.chat-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+/* 欢迎区 */
+.welcome-section { text-align: center; padding: 60px 0 40px; }
+.welcome-section h2 { font-size: 28px; color: #1a1a2e; margin-bottom: 8px; }
+.welcome-section p { color: #999; font-size: 15px; margin-bottom: 36px; }
+
+.example-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; max-width: 600px; margin: 0 auto; }
+.example-card { display: flex; align-items: center; padding: 14px 18px; background: #fff; border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid #ebeef5; text-align: left; }
+.example-card:hover { border-color: #667eea; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.15); }
+.ex-text { font-size: 13px; color: #333; line-height: 1.5; }
+
+/* 对话区 */
+.messages-area { max-width: 800px; margin: 0 auto; }
+.message { display: flex; gap: 12px; margin-bottom: 24px; }
+.message.user { flex-direction: row-reverse; }
+
+.msg-avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.ai-msg-avatar { background: none; padding: 2px; }
+.user-msg-avatar { background: linear-gradient(135deg, #f56c6c, #e74c3c); }
+.ai-avatar-img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; display: block; }
+.user-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
+
+.msg-content { max-width: 80%; }
+.user-text { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 12px 18px; border-radius: 16px 16px 4px 16px; font-size: 14px; line-height: 1.6; }
+
+.ai-response { background: #fff; border-radius: 16px 16px 16px 4px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.ai-summary p { color: #333; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+
+/* 推荐卡片 */
+.recommend-cards { display: flex; flex-direction: column; gap: 16px; }
+.recommend-card { border: 1px solid #ebeef5; border-radius: 12px; overflow: hidden; transition: all 0.2s; }
+.recommend-card:hover { border-color: #667eea; box-shadow: 0 4px 16px rgba(102,126,234,0.12); }
+
+.card-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fafbfc; border-bottom: 1px solid #ebeef5; }
+.rank { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.rank-1 { background: linear-gradient(135deg, #f56c6c, #e74c3c); }
+.rank-2 { background: linear-gradient(135deg, #e6a23c, #f39c12); }
+.rank-3 { background: linear-gradient(135deg, #67c23a, #27ae60); }
+
+.card-title { flex: 1; min-width: 0; }
+.card-title h3 { font-size: 15px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.tag.category { background: #f0f2f5; color: #666; }
+.tag.seats { background: #f0f2f5; color: #666; }
+.tag.business { background: #ecf5ff; color: #409eff; }
+.tag.wedding { background: #fef0f0; color: #f56c6c; }
+.tag.family { background: #f0f9eb; color: #67c23a; }
+.tag.commute { background: #fdf6ec; color: #e6a23c; }
+
+.match-score { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.score-bar { width: 60px; height: 6px; background: #ebeef5; border-radius: 3px; overflow: hidden; }
+.score-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; transition: width 0.6s; }
+.score-text { font-size: 13px; font-weight: 600; color: #667eea; white-space: nowrap; }
+
+.card-body { display: flex; gap: 16px; padding: 16px; }
+.car-img-wrap { width: 140px; height: 90px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: #e0e7ff; }
+.car-img { width: 100%; height: 100%; object-fit: cover; }
+.card-info { flex: 1; min-width: 0; }
+.reason { color: #666; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
+.card-meta { display: flex; gap: 16px; align-items: baseline; margin-bottom: 12px; }
+.price { font-size: 18px; font-weight: 700; color: #f56c6c; }
+.price small { font-size: 12px; font-weight: normal; color: #999; }
+.deposit { font-size: 12px; color: #999; }
+.mileage { font-size: 12px; color: #999; }
+
+/* 思考中动画 */
+.thinking { display: flex; gap: 6px; padding: 8px 0; }
+.thinking .dot { width: 8px; height: 8px; background: #667eea; border-radius: 50%; animation: bounce 1.4s ease-in-out infinite; }
+.thinking .dot:nth-child(2) { animation-delay: 0.16s; }
+.thinking .dot:nth-child(3) { animation-delay: 0.32s; }
+@keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+/* AI文本回复 */
+.ai-text-response { max-width: 100%; }
+.ai-text { background: #f8f9fb; padding: 14px 18px; border-radius: 0 16px 16px 16px; font-size: 14px; line-height: 1.7; color: #333; word-break: break-word; }
+.ai-text strong { color: #667eea; }
+
+/* 打字动画 */
+.typing-indicator { display: flex; gap: 4px; padding: 14px 18px; background: #f8f9fb; border-radius: 0 16px 16px 16px; }
+.typing-indicator span { width: 8px; height: 8px; background: #b0b0b0; border-radius: 50%; animation: typing 1.4s infinite; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
 }
-.rank {
-  width: 32px; height: 32px;
-  background: #667eea;
-  color: #fff;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: bold;
-  flex-shrink: 0;
+
+/* 输入区 */
+.input-bar { background: #fff; border-top: 1px solid #ebeef5; padding: 16px 24px; position: sticky; bottom: 0; }
+.input-wrap { display: flex; gap: 12px; max-width: 800px; margin: 0 auto; }
+.input-wrap input { flex: 1; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+.input-wrap input:focus { border-color: #667eea; }
+.input-wrap input:disabled { background: #f5f7fa; }
+.send-btn { width: 48px; height: 48px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 12px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+.send-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.input-hint { text-align: center; font-size: 12px; color: #999; margin-top: 8px; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+/* 移动端适配 */
+.sidebar-overlay { display: none; }
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+  .sidebar.open { transform: translateX(0); }
+  .ai-page { flex-direction: column; }
+  .chat-main { margin-left: 0; }
+  .example-cards { grid-template-columns: 1fr; }
+  .card-body { flex-direction: column; }
+  .car-img-wrap { width: 100%; height: 160px; }
+  .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 199; }
 }
-.car-img-wrapper {
-  width: 120px;
-  height: 80px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: #e0e7ff;
+
+/* 桌面端侧边栏收起/展开 */
+@media (min-width: 769px) {
+  .sidebar { transition: transform 0.3s ease, width 0.3s ease; }
+  .ai-page:not(:has(.sidebar.open)) .sidebar { transform: translateX(-100%); }
+  .ai-page:not(:has(.sidebar.open)) .chat-main { margin-left: 0; }
 }
-.car-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.recommend-info { flex: 1; }
-.recommend-info h3 { margin-bottom: 8px; }
-.reason { color: #666; margin-bottom: 10px; font-size: 14px; }
-.meta { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
-.price { color: #f56c6c; font-weight: bold; }
-.example-section { margin-top: 30px; }
-.example-section h3 { margin-bottom: 12px; color: #666; }
-.examples { display: flex; flex-wrap: wrap; gap: 8px; }
-.example-btn { color: #667eea !important; }
 </style>

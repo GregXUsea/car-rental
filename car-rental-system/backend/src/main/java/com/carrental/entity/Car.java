@@ -20,6 +20,7 @@ public class Car {
     private String image;
     private Integer status;
     private Integer mileage;
+    private Integer maintainCount;
     private LocalDate lastMaintainDate;
     private String description;
     private String category;

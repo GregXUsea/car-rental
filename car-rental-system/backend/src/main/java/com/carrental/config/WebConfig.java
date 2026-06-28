@@ -31,9 +31,16 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/login",
                         "/api/auth/register",
                         "/api/auth/reset-password",
+                        "/api/auth/check-username",
+                        "/api/auth/verify-identity",
+                        "/api/auth/verify-code",
+                        "/api/auth/send-reset-code",
+                        "/api/auth/reset-password-by-code",
                         "/api/cars/list",
                         "/api/cars/search",
-                        "/api/cars/detail/**"
+                        "/api/cars/detail/**",
+                        "/api/ai/maintenance/**",
+                        "/api/ai/rag/**"
                 );
     }
 }
