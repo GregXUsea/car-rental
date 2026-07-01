@@ -82,7 +82,7 @@
           </div>
           <div class="info-grid">
             <div class="info-item">
-              <span class="label">用户名</span>
+              <span class="label">用户名（登录用）</span>
               <span class="value">{{ userInfo.username }}</span>
             </div>
             <div class="info-item">

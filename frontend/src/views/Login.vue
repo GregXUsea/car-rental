@@ -95,7 +95,7 @@
             <el-form-item prop="password">
               <div class="input-group" :class="{ error: errors.password }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                <input v-model="form.password" :type="showPwd ? 'text' : 'password'" placeholder="密码" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" @blur="validateField('password')" />
+                <input v-model="form.password" :type="showPwd ? 'text' : 'password'" placeholder="请输入密码" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" @blur="validateField('password')" />
                 <span class="eye" @click="showPwd = !showPwd">
                   <svg v-if="!showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -625,6 +625,7 @@ const handleResetByCode = async () => {
 .input-group.error { border-color: #f56c6c; background: #fff5f5; }
 .input-group input { border: none; background: transparent; outline: none; font-size: 15px; width: 100%; color: #333; }
 .input-group input::placeholder { color: #bbb; }
+.input-group input::-ms-reveal { display: none; }
 .eye { cursor: pointer; display: flex; padding: 4px; }
 .error-msg { display: block; color: #f56c6c; font-size: 12px; margin-top: 8px; padding-left: 4px; }
 

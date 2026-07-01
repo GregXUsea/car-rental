@@ -73,10 +73,10 @@
 
           <el-form :model="form" :rules="rules" ref="formRef" label-position="top">
             <el-form-item prop="username">
-              <label class="field-label">用户名 <span class="req">*</span></label>
+              <label class="field-label">用户名（用于登录） <span class="req">*</span></label>
               <div class="input-group" :class="{ error: errors.username, success: !errors.username && form.username }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <input v-model="form.username" placeholder="2-20位，支持中文" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="checkUsernameAvail" @input="errors.username = ''; usernameChecked = false" />
+                <input v-model="form.username" placeholder="2-20位，中文/字母/数字/下划线" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="checkUsernameAvail" @input="errors.username = ''; usernameChecked = false" />
               </div>
               <span class="error-msg" v-if="errors.username">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -86,6 +86,19 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 该用户名可以使用
               </span>
+            </el-form-item>
+
+            <el-form-item>
+              <label class="field-label">昵称 <span class="req">*</span></label>
+              <div class="input-group" :class="{ error: errors.nickname }">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input v-model="form.nickname" placeholder="对外展示名称" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('nickname')" @input="errors.nickname = ''" />
+              </div>
+              <span class="error-msg" v-if="errors.nickname">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ errors.nickname }}
+              </span>
+              <span class="field-hint" v-else>对外展示的名称，可与用户名不同</span>
             </el-form-item>
 
             <el-form-item prop="password">
@@ -135,16 +148,16 @@
             </el-form-item>
 
             <el-form-item>
-              <label class="field-label">邮箱</label>
+              <label class="field-label">邮箱 <span class="req">*</span></label>
               <div class="input-group" :class="{ error: errors.email }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
-                <input v-model="form.email" type="email" placeholder="用于找回密码（选填）" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('email')" @input="errors.email = ''" />
+                <input v-model="form.email" type="email" placeholder="用于找回密码（必填）" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('email')" @input="errors.email = ''" />
               </div>
               <span class="error-msg" v-if="errors.email">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 {{ errors.email }}
               </span>
-              <span class="field-hint" v-else>填写后可通过邮箱找回密码</span>
+              <span class="field-hint" v-else>邮箱将用于找回密码</span>
             </el-form-item>
 
             <el-form-item>
@@ -200,8 +213,8 @@ const formRef = ref(null)
 const loading = ref(false)
 const showPwd = ref(false)
 
-const form = reactive({ username: '', password: '', confirmPassword: '', phone: '', email: '' })
-const errors = reactive({ username: '', password: '', confirmPassword: '', phone: '', email: '' })
+const form = reactive({ username: '', nickname: '', password: '', confirmPassword: '', phone: '', email: '' })
+const errors = reactive({ username: '', nickname: '', password: '', confirmPassword: '', phone: '', email: '' })
 const usernameChecked = ref(false)
 const pwdStrength = reactive({ level: 0, text: '', cls: '' })
 
@@ -328,14 +341,30 @@ const checkUsernameAvail = async () => {
 }
 
 const validate = (field) => {
-  const v = form[field]
+  let v = form[field]
+  // 用户名：去首尾空格，并检测是否包含空格
   if (field === 'username') {
+    const raw = form[field] || ''
+    if (raw !== raw.trim()) { errors.username = '用户名不能包含空格'; return }
+    v = raw.trim(); form[field] = v
     if (!v) errors.username = '请输入用户名'
     else if (v.length < 2) errors.username = '用户名至少需要2个字符'
     else if (v.length > 20) errors.username = '用户名不能超过20个字符'
+    else if (!/^[一-龥a-zA-Z0-9_]+$/.test(v)) errors.username = '用户名只能包含中文、字母、数字和下划线'
     else errors.username = ''
   }
+  if (field === 'nickname') {
+    const raw = form[field] || ''
+    if (raw !== raw.trim()) { errors.nickname = '昵称不能包含空格'; return }
+    v = raw.trim(); form[field] = v
+    if (!v) errors.nickname = '请输入昵称'
+    else if (v.length < 1 || v.length > 20) errors.nickname = '昵称长度1-20位'
+    else errors.nickname = ''
+  }
   if (field === 'password') {
+    const raw = form[field] || ''
+    if (/\s/.test(raw)) { errors.password = '密码不能包含空格'; return }
+    v = raw.trim(); form[field] = v
     if (!v) errors.password = '请设置密码'
     else if (v.length < 6) errors.password = '密码长度不能少于6位'
     else if (pwdStrength.level <= 1) errors.password = '密码强度太弱，请包含字母、数字或特殊字符'
@@ -352,12 +381,13 @@ const validate = (field) => {
     else errors.phone = ''
   }
   if (field === 'email') {
-    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) errors.email = '请输入正确的邮箱地址'
+    if (!v) errors.email = '邮箱不能为空（用于找回密码）'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) errors.email = '请输入正确的邮箱地址'
     else errors.email = ''
   }
 }
 
-const isFormValid = computed(() => form.username && form.password && form.confirmPassword && form.phone && !errors.username && !errors.password && !errors.confirmPassword && !errors.phone)
+const isFormValid = computed(() => form.username && form.nickname && form.password && form.confirmPassword && form.phone && form.email && !errors.username && !errors.nickname && !errors.password && !errors.confirmPassword && !errors.phone && !errors.email)
 
 // 实际注册提交
 const doRegister = async () => {
@@ -381,6 +411,8 @@ const doRegister = async () => {
 }
 
 const handleRegister = async () => {
+  // 去所有字段首尾空格
+  ['username', 'nickname', 'password', 'phone', 'email'].forEach(f => { if (form[f]) form[f] = form[f].trim() })
   Object.keys(form).forEach(f => { if (errors[f] !== undefined) validate(f) })
   if (!isFormValid.value) return
 
@@ -486,6 +518,7 @@ const showRegisterSuccess = (username) => {
 .input-group.success { border-color: #67c23a; background: #f0f9eb; }
 .input-group input { border: none; background: transparent; outline: none; font-size: 14px; width: 100%; }
 .input-group input::placeholder { color: #bbb; }
+.input-group input::-ms-reveal { display: none; }
 .eye { cursor: pointer; display: flex; padding: 4px; }
 
 .strength { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 0 4px; }
