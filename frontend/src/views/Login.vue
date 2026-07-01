@@ -87,7 +87,7 @@
             <el-form-item prop="username">
               <div class="input-group" :class="{ error: errors.username }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <input v-model="form.username" type="text" placeholder="请输入用户名" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validateField('username')" />
+                <input v-model="form.username" type="text" placeholder="请输入用户名" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validateField('username')" @input="form.username = form.username.replace(/\s/g, '')" />
               </div>
               <span class="error-msg" v-if="errors.username">{{ errors.username }}</span>
             </el-form-item>
@@ -160,7 +160,7 @@
         </div>
         <div class="form-group">
           <label>邮箱</label>
-          <input v-model="resetForm.email" type="email" placeholder="请输入注册时绑定的邮箱" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" />
+          <input v-model="resetForm.email" type="email" placeholder="请输入注册时绑定的邮箱" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @input="resetForm.email = resetForm.email.replace(/\s/g, '')" />
         </div>
         <button class="reset-btn" @click="handleVerifyIdentity" :disabled="!resetForm.username || !resetForm.email || resetLoading">
           {{ resetLoading ? '验证中...' : '下一步' }}
@@ -373,7 +373,10 @@ const handleLogin = async () => {
       // 获取用户信息
       const userRes = await api.get('/user/info')
       const nickname = userRes.code === 200 ? (userRes.data.nickname || userRes.data.username) : '用户'
-      const isNewUser = userRes.code === 200 && (Date.now() - new Date(userRes.data.createTime).getTime() < 24 * 60 * 60 * 1000)
+      // 新用户=注册30天内且未下过单
+      const hasNoOrders = !userRes.data.orderCount || userRes.data.orderCount === 0
+      const within30Days = (Date.now() - new Date(userRes.data.createTime).getTime() < 30 * 24 * 60 * 60 * 1000)
+      const isNewUser = userRes.code === 200 && within30Days && hasNoOrders
 
       // 存储欢迎信息到 localStorage（更可靠）
       localStorage.setItem('showWelcome', '1')

@@ -139,7 +139,7 @@
               <label class="field-label">手机号 <span class="req">*</span></label>
               <div class="input-group" :class="{ error: errors.phone }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                <input v-model="form.phone" placeholder="11位手机号" maxlength="11" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('phone')" @input="errors.phone = ''" />
+                <input v-model="form.phone" placeholder="11位手机号" maxlength="11" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('phone')" @input="form.phone = form.phone.replace(/\s/g, ''); errors.phone = ''" />
               </div>
               <span class="error-msg" v-if="errors.phone">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -151,7 +151,7 @@
               <label class="field-label">邮箱 <span class="req">*</span></label>
               <div class="input-group" :class="{ error: errors.email }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
-                <input v-model="form.email" type="email" placeholder="用于找回密码（必填）" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('email')" @input="errors.email = ''" />
+                <input v-model="form.email" type="email" placeholder="用于找回密码（必填）" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" @blur="validate('email')" @input="form.email = form.email.replace(/\s/g, ''); errors.email = ''" />
               </div>
               <span class="error-msg" v-if="errors.email">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>

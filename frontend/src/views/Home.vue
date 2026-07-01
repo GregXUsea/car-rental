@@ -297,7 +297,7 @@ onMounted(async () => {
   const userRes = await api.get('/user/info')
   if (userRes.code === 200) {
     userInfo.value = userRes.data
-    if (userRes.data.avatar) localStorage.setItem('userAvatar', userRes.data.avatar)
+    localStorage.setItem('userAvatar', userRes.data.avatar || '')
   }
 
   // 立即检查并显示欢迎弹窗（所有用户都显示）

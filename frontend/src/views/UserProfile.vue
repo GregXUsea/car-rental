@@ -149,11 +149,11 @@
           </div>
           <div class="form-group">
             <label>手机号</label>
-            <input v-model="editForm.phone" placeholder="请输入手机号" maxlength="11" />
+            <input v-model="editForm.phone" placeholder="请输入手机号" maxlength="11" @input="editForm.phone = editForm.phone.replace(/\s/g, '')" />
           </div>
           <div class="form-group">
             <label>邮箱</label>
-            <input v-model="editForm.email" placeholder="请输入邮箱" />
+            <input v-model="editForm.email" placeholder="请输入邮箱" @input="editForm.email = editForm.email.replace(/\s/g, '')" />
           </div>
           <button class="submit-btn" @click="handleUpdate" :disabled="saving">
             {{ saving ? '保存中...' : '保存修改' }}
