@@ -35,6 +35,9 @@
     <div class="chat-main">
       <!-- 顶部标题栏 -->
       <div class="chat-header">
+        <button class="back-btn" @click="$router.push('/')" title="返回首页">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
         <button class="toggle-sidebar-btn" @click="toggleSidebar" title="切换侧边栏">
           <svg v-if="sidebarOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -49,7 +52,7 @@
       </div>
 
       <!-- 对话内容区 -->
-      <div class="chat-body" ref="chatArea">
+      <div class="chat-body" ref="chatArea" @scroll="onChatScroll">
         <!-- 欢迎区 -->
         <div v-if="messages.length === 0" class="welcome-section">
           <div class="welcome-avatar">
@@ -139,6 +142,13 @@
         </div>
       </div>
 
+      <!-- 回到顶部按钮 -->
+      <transition name="fade">
+        <button v-if="showScrollTop" class="scroll-top-btn" @click="scrollToTop" title="回到顶部">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+      </transition>
+
       <!-- 输入区 -->
       <div class="input-bar">
         <div class="input-wrap">
@@ -176,6 +186,7 @@ const messages = ref([])
 const chatArea = ref(null)
 const userAvatar = ref(localStorage.getItem('userAvatar') || '')
 const sidebarOpen = ref(true) // 桌面端默认打开
+const showScrollTop = ref(false)
 
 // 多会话管理
 const CONVERSATIONS_KEY = 'ai_conversations'
@@ -229,10 +240,17 @@ const loadConversations = () => {
     // 选中会话：优先恢复上次活跃的会话，否则选最新
     if (conversations.value.length > 0) {
       const lastConvId = sessionStorage.getItem('ai_last_conv_id')
+      const savedScroll = sessionStorage.getItem('ai_scroll_top')
       const target = lastConvId && conversations.value.find(c => c.id === lastConvId)
         ? lastConvId
         : conversations.value[0].id
-      switchConversation(target)
+      // 如果有保存的滚动位置，恢复到点击位置而非底部
+      if (savedScroll !== null && lastConvId) {
+        sessionStorage.removeItem('ai_scroll_top')
+        switchConversation(target, parseInt(savedScroll) || 0)
+      } else {
+        switchConversation(target)
+      }
     }
   } catch (e) { /* ignore */ }
 }
@@ -288,19 +306,28 @@ const createNewChat = () => {
   switchConversation(conv.id)
 }
 
-const switchConversation = (id) => {
+const switchConversation = (id, scrollTo) => {
   currentConvId.value = id
   const conv = conversations.value.find(c => c.id === id)
   messages.value = conv ? [...conv.messages] : []
   sessionStorage.setItem('ai_last_conv_id', id)
   // 移动端自动收起侧边栏
   if (window.innerWidth <= 768) sidebarOpen.value = false
-  scrollToBottom()
+  // 恢复滚动位置或滚到底部
+  if (scrollTo !== undefined) {
+    nextTick(() => { if (chatArea.value) chatArea.value.scrollTop = scrollTo })
+  } else {
+    scrollToBottom()
+  }
 }
 
 // 跳转车辆详情前保存当前对话ID，返回时恢复
 const goToCarDetail = (carId) => {
   sessionStorage.setItem('ai_last_conv_id', currentConvId.value)
+  // 保存当前滚动位置，返回时恢复
+  if (chatArea.value) {
+    sessionStorage.setItem('ai_scroll_top', chatArea.value.scrollTop)
+  }
   $router.push(`/car/${carId}`)
 }
 
@@ -334,6 +361,43 @@ const scrollToBottom = () => {
   })
 }
 
+// 回到顶部
+const scrollToTop = () => {
+  if (chatArea.value) chatArea.value.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 打字机效果：逐字显示AI回复（通过索引操作确保Vue响应式更新）
+const typeWriter = (msgIndex, fullText) => {
+  return new Promise((resolve) => {
+    let charIdx = 0
+    const speed = 18 // 每字符间隔(ms)
+    const chunkSize = 2 // 每次显示2个字符
+
+    const type = () => {
+      if (charIdx < fullText.length) {
+        // 通过 messages.value[msgIndex] 触发 Vue 响应式更新
+        messages.value[msgIndex].reply += fullText.slice(charIdx, charIdx + chunkSize)
+        charIdx += chunkSize
+        scrollToBottom()
+        const lastChar = fullText[charIdx - 1]
+        const delay = '。！？，；：'.includes(lastChar) ? speed * 4 : speed
+        setTimeout(type, delay)
+      } else {
+        resolve()
+      }
+    }
+    type()
+  })
+}
+
+// 监听滚动，显示/隐藏回到顶部按钮
+const onChatScroll = () => {
+  if (!chatArea.value) return
+  const { scrollTop, scrollHeight, clientHeight } = chatArea.value
+  // 距离底部超过200px时显示
+  showScrollTop.value = (scrollHeight - scrollTop - clientHeight) > 200
+}
+
 const sendMessage = async (text) => {
   if (!text.trim() || loading.value) return
   inputText.value = ''
@@ -354,24 +418,33 @@ const sendMessage = async (text) => {
   scrollToBottom()
 
   loading.value = true
+  const msgIndex = messages.value.length - 1 // aiMsg 在数组中的索引
   try {
     const history = buildApiHistory()
     const res = await api.post('/ai/chat', { message: text.trim(), history })
     if (res.code === 200) {
       const data = res.data
-      aiMsg.type = data.type || 'text'
+      messages.value[msgIndex].type = data.type || 'text'
       if (data.type === 'recommend') {
-        aiMsg.result = { summary: data.reply, recommendations: data.recommendations || [] }
+        messages.value[msgIndex].result = { summary: data.reply, recommendations: data.recommendations || [] }
+        messages.value[msgIndex].loading = false
       } else {
-        aiMsg.reply = data.reply || '抱歉，我暂时无法回答这个问题。'
+        // 文本回复：打字机效果逐字显示
+        const fullReply = data.reply || '抱歉，我暂时无法回答这个问题。'
+        messages.value[msgIndex].reply = ''
+        messages.value[msgIndex].loading = false
+        await typeWriter(msgIndex, fullReply)
       }
     } else {
-      aiMsg.reply = '抱歉，服务暂时不可用：' + res.message
+      messages.value[msgIndex].reply = ''
+      messages.value[msgIndex].loading = false
+      await typeWriter(msgIndex, '抱歉，服务暂时不可用：' + res.message)
     }
   } catch (e) {
-    aiMsg.reply = '请求失败，请稍后重试'
+    messages.value[msgIndex].reply = ''
+    messages.value[msgIndex].loading = false
+    await typeWriter(msgIndex, '请求失败，请稍后重试')
   } finally {
-    aiMsg.loading = false
     loading.value = false
     scrollToBottom()
     saveCurrentMessages()
@@ -457,9 +530,11 @@ const handleImgError = (e) => {
 .back-home-btn:hover { background: rgba(255,255,255,0.06); color: #fff; border-color: rgba(255,255,255,0.2); }
 
 /* ====== 右侧聊天区 ====== */
-.chat-main { flex: 1; display: flex; flex-direction: column; margin-left: 260px; min-height: 100vh; }
+.chat-main { flex: 1; display: flex; flex-direction: column; margin-left: 260px; height: 100vh; overflow: hidden; position: relative; }
 
-.chat-header { background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.06); padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+.chat-header { background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.06); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; z-index: 100; }
+.back-btn { background: none; border: none; color: #666; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.back-btn:hover { background: #f0f2f5; color: #333; }
 .toggle-sidebar-btn { background: none; border: none; color: #666; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .toggle-sidebar-btn:hover { background: #f0f2f5; color: #333; }
 
@@ -470,7 +545,7 @@ const handleImgError = (e) => {
 .ai-disclaimer { font-size: 12px; color: #aaa; margin: 3px 0 0; display: flex; align-items: center; gap: 4px; }
 
 
-.chat-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.chat-body { flex: 1; overflow-y: auto; padding: 20px 24px; min-height: 0; }
 
 /* 欢迎区 */
 .welcome-section { text-align: center; padding: 60px 0 40px; }
@@ -483,7 +558,7 @@ const handleImgError = (e) => {
 .ex-text { font-size: 13px; color: #333; line-height: 1.5; }
 
 /* 对话区 */
-.messages-area { max-width: 800px; margin: 0 auto; }
+.messages-area { max-width: 800px; margin: 0 auto; padding-bottom: 20px; }
 .message { display: flex; gap: 12px; margin-bottom: 24px; }
 .message.user { flex-direction: row-reverse; }
 
@@ -560,7 +635,7 @@ const handleImgError = (e) => {
 }
 
 /* 输入区 */
-.input-bar { background: #fff; border-top: 1px solid #ebeef5; padding: 16px 24px; position: sticky; bottom: 0; }
+.input-bar { background: #fff; border-top: 1px solid #ebeef5; padding: 12px 24px 8px; flex-shrink: 0; position: relative; z-index: 10; }
 .input-wrap { display: flex; gap: 12px; max-width: 800px; margin: 0 auto; }
 .input-wrap input { flex: 1; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; transition: border-color 0.2s; }
 .input-wrap input:focus { border-color: #667eea; }
@@ -570,7 +645,13 @@ const handleImgError = (e) => {
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.input-hint { text-align: center; font-size: 12px; color: #999; margin-top: 8px; max-width: 800px; margin-left: auto; margin-right: auto; }
+.input-hint { text-align: center; font-size: 12px; color: #999; margin-top: 4px; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+/* 回到顶部按钮 */
+.scroll-top-btn { position: absolute; bottom: 100px; right: 36px; z-index: 50; width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 4px 16px rgba(0,0,0,0.1); color: #667eea; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+.scroll-top-btn:hover { background: #667eea; color: #fff; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: scale(0.8); }
 
 /* 移动端适配 */
 .sidebar-overlay { display: none; }

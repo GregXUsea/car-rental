@@ -5,6 +5,7 @@ import com.carrental.dto.RentDTO;
 import com.carrental.entity.Car;
 import com.carrental.entity.Driver;
 import com.carrental.entity.Order;
+import com.carrental.entity.User;
 import com.carrental.mapper.OrderMapper;
 import com.carrental.util.OrderNoUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,9 @@ public class OrderService {
 
     @Autowired
     private RAGService ragService;
+
+    @Autowired
+    private UserService userService;
 
     // 司机服务费（每天）
     private static final BigDecimal DRIVER_DAILY_FEE = new BigDecimal("150.00");
@@ -82,13 +86,18 @@ public class OrderService {
         }
 
         if (isReservation) {
-            // 预约：已预约的车不能再次预约
-            Long existReserve = orderMapper.selectCount(
+            // 预约：检查时间段是否与现有预约重叠
+            List<Order> existingReserves = orderMapper.selectList(
                     new LambdaQueryWrapper<Order>()
                             .eq(Order::getCarId, dto.getCarId())
                             .eq(Order::getStatus, 4));
-            if (existReserve > 0) {
-                throw new RuntimeException("该车已有预约，不能重复预约");
+            for (Order reserve : existingReserves) {
+                // 检查时间是否重叠（含6小时缓冲）
+                LocalDateTime bufferedStart = reserve.getStartTime().minusHours(6);
+                LocalDateTime bufferedEnd = reserve.getEndTime().plusHours(6);
+                if (dto.getStartTime().isBefore(bufferedEnd) && dto.getEndTime().isAfter(bufferedStart)) {
+                    throw new RuntimeException("该车在此时间段已有预约（含6小时周转缓冲）");
+                }
             }
         }
         // 租车：不检查车辆状态，靠时间冲突检查来判断是否可用
@@ -210,9 +219,10 @@ public class OrderService {
      * 支付押金
      */
     @Transactional
-    public Order payDeposit(Long orderId) {
+    public Order payDeposit(Long orderId, Long userId) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
         if (order.getStatus() != 0 && order.getStatus() != 4) {
             throw new RuntimeException("订单状态不允许支付押金");
         }
@@ -247,9 +257,10 @@ public class OrderService {
      * 支付租金（可提前付，也可归还时付）
      */
     @Transactional
-    public Order payRental(Long orderId) {
+    public Order payRental(Long orderId, Long userId) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
         if (order.getStatus() != 1 && order.getStatus() != 4) {
             throw new RuntimeException("订单状态不允许支付租金");
         }
@@ -290,9 +301,10 @@ public class OrderService {
     }
 
     @Transactional
-    public Order returnCar(Long orderId) {
+    public Order returnCar(Long orderId, Long userId) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
         if (order.getStatus() != 1) {
             throw new RuntimeException("订单状态不允许归还");
         }
@@ -312,14 +324,24 @@ public class OrderService {
             actualDriverCost = DRIVER_DAILY_FEE.multiply(actualDays);
         }
 
-        // 新用户优惠：首单5折（最高减200）——还车时也保留折扣
-        boolean isNewUser = isNewUser(order.getUserId());
-        if (isNewUser) {
-            BigDecimal originalTotal = actualCarCost.add(actualDriverCost);
-            BigDecimal halfPriceDiscount = originalTotal.multiply(new BigDecimal("0.5"));
-            BigDecimal discount = halfPriceDiscount.min(new BigDecimal("200"));
-            actualCarCost = actualCarCost.subtract(discount);
-            order.setDiscount(discount);
+        // 新用户优惠：还车时按原订单折扣比例重新计算
+        // 不再重新调用 isNewUser()（此时订单已存在，会返回false导致优惠丢失）
+        if (order.getDiscount() != null && order.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
+            // 按原订单的折扣比例，对实际费用重新计算折扣
+            BigDecimal originalCarCost = car.getPricePerDay().multiply(
+                    BigDecimal.valueOf(Duration.between(order.getStartTime(), order.getEndTime()).toMinutes())
+                            .divide(BigDecimal.valueOf(1440), 2, java.math.RoundingMode.HALF_UP));
+            BigDecimal originalDriverCost = order.getDriverId() != null ? DRIVER_DAILY_FEE.multiply(
+                    BigDecimal.valueOf(Duration.between(order.getStartTime(), order.getEndTime()).toMinutes())
+                            .divide(BigDecimal.valueOf(1440), 2, java.math.RoundingMode.HALF_UP)) : BigDecimal.ZERO;
+            BigDecimal originalTotalForDiscount = originalCarCost.add(originalDriverCost);
+            if (originalTotalForDiscount.compareTo(BigDecimal.ZERO) > 0) {
+                // 按原折扣比例计算实际折扣
+                BigDecimal discountRatio = order.getDiscount().divide(originalTotalForDiscount, 4, java.math.RoundingMode.HALF_UP);
+                BigDecimal actualDiscount = actualCarCost.add(actualDriverCost).multiply(discountRatio).min(new BigDecimal("200"));
+                actualCarCost = actualCarCost.subtract(actualDiscount);
+                order.setDiscount(actualDiscount);
+            }
         }
 
         // 计算押金退还
@@ -378,6 +400,7 @@ public class OrderService {
     public Order cancelOrder(Long orderId, Long userId) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
 
         // 待支付订单（status=0）可随时取消
         if (order.getStatus() == 0) {
@@ -502,9 +525,10 @@ public class OrderService {
     }
 
     @Transactional
-    public Order rateOrder(Long orderId, Integer rating, String comment) {
+    public Order rateOrder(Long orderId, Long userId, Integer rating, String comment) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
         if (order.getStatus() != 2) {
             throw new RuntimeException("只能评价已完成的订单");
         }
@@ -517,16 +541,75 @@ public class OrderService {
         return order;
     }
 
-    // 检查是否新用户（注册24小时内）
+    // 检查是否新用户（注册30天内，且未使用过首单优惠）
     private boolean isNewUser(Long userId) {
-        Order firstOrder = orderMapper.selectOne(
+        // 查询用户是否有已完成或进行中的订单（排除已取消的订单）
+        Order existingOrder = orderMapper.selectOne(
                 new LambdaQueryWrapper<Order>()
                         .eq(Order::getUserId, userId)
+                        .ne(Order::getStatus, 3) // 排除已取消订单
                         .orderByAsc(Order::getCreateTime)
                         .last("LIMIT 1"));
-        if (firstOrder == null) return true; // 没有订单，是新用户
-        long hoursSinceFirst = Duration.between(firstOrder.getCreateTime(), LocalDateTime.now()).toHours();
-        return hoursSinceFirst < 24;
+        if (existingOrder != null) return false; // 已有有效订单，不是新用户
+
+        // 检查注册时间是否在30天内
+        User user = userService.getUserById(userId);
+        if (user == null || user.getCreateTime() == null) return false;
+        long daysSinceRegister = Duration.between(user.getCreateTime(), LocalDateTime.now()).toDays();
+        return daysSinceRegister <= 30; // 注册30天内
+    }
+
+    // 公开方法：检查用户是否可以使用新用户优惠（供Controller调用）
+    public boolean checkNewUserCoupon(Long userId) {
+        return isNewUser(userId);
+    }
+
+    // 重置用户优惠券（将所有非取消订单标记为已取消）
+    public int resetCoupon(Long userId) {
+        List<Order> orders = orderMapper.selectList(
+                new LambdaQueryWrapper<Order>()
+                        .eq(Order::getUserId, userId)
+                        .ne(Order::getStatus, 3));
+        int count = 0;
+        for (Order order : orders) {
+            order.setStatus(3);
+            order.setCancelTime(LocalDateTime.now());
+            orderMapper.updateById(order);
+            count++;
+        }
+        return count;
+    }
+
+    // 重置用户优惠券 + 刷新注册时间到当前（确保30天内）
+    public int resetCouponWithRefresh(Long userId, com.carrental.entity.User user) {
+        int count = resetCoupon(userId);
+        // 更新注册时间为当前，确保30天有效期
+        user.setCreateTime(LocalDateTime.now());
+        userService.updateUserCreateTime(user);
+        return count;
+    }
+
+    // 刷新指定订单的取消窗口（重置depositPaidTime为当前时间）
+    public void refreshCancelWindow(Long orderId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order != null && (order.getStatus() == 1 || order.getStatus() == 4)) {
+            order.setDepositPaidTime(LocalDateTime.now());
+            orderMapper.updateById(order);
+        }
+    }
+
+    // 恢复被误取消的订单到正确状态
+    public void restoreOrder(Long orderId, int newStatus) {
+        Order order = orderMapper.selectById(orderId);
+        if (order != null && order.getStatus() == 3) {
+            order.setStatus(newStatus);
+            order.setCancelTime(null);
+            // 如果恢复为在租/预约状态，刷新押金支付时间以重置取消窗口
+            if (newStatus == 1 || newStatus == 4) {
+                order.setDepositPaidTime(LocalDateTime.now());
+            }
+            orderMapper.updateById(order);
+        }
     }
 
     // 根据车辆类型和租期估算行驶里程

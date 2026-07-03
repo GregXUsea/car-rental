@@ -62,10 +62,12 @@
         <!-- 品牌标识 -->
         <div class="ad-brand">
           <div class="brand-logo">
-            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
-              <path d="M20 2L4 10v14c0 9 7 17 16 20 9-3 16-11 16-20V10L20 2z" fill="url(#loginLogo)"/>
-              <path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <defs><linearGradient id="loginLogo" x1="4" y1="2" x2="36" y2="36"><stop stop-color="#FFD700"/><stop offset="1" stop-color="#FFA500"/></linearGradient></defs>
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+              <defs>
+                <linearGradient id="gLoginLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+              </defs>
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gLoginLogo)"/>
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
           <div class="brand-text">

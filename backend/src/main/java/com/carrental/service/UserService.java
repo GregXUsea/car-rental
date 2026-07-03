@@ -74,6 +74,15 @@ public class UserService {
         return userMapper.selectById(id);
     }
 
+    public User getUserByUsername(String username) {
+        return userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+    }
+
+    public void updateUserCreateTime(User user) {
+        userMapper.updateById(user);
+    }
+
     public Result<String> updateUser(Long userId, UpdateUserDTO dto) {
         User user = userMapper.selectById(userId);
         if (user == null) return Result.error("用户不存在");

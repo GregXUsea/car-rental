@@ -52,6 +52,12 @@ const routes = [
     name: 'MaintenanceDashboard',
     component: () => import('../views/MaintenanceDashboard.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/coupon',
+    name: 'CouponPage',
+    component: () => import('../views/CouponPage.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

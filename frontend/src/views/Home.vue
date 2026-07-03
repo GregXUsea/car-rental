@@ -4,10 +4,26 @@
       <div class="header-content">
         <div class="logo" @click="$router.push('/')">
           <div class="logo-icon">
-            <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
-              <path d="M20 2L4 10v14c0 9 7 17 16 20 9-3 16-11 16-20V10L20 2z" fill="url(#homeLogo)"/>
-              <path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <defs><linearGradient id="homeLogo" x1="4" y1="2" x2="36" y2="36"><stop stop-color="#FFD700"/><stop offset="1" stop-color="#FFA500"/></linearGradient></defs>
+            <svg width="38" height="38" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="gLogo" x1="4" y1="2" x2="44" y2="46">
+                  <stop offset="0%" stop-color="#FFD700"/>
+                  <stop offset="100%" stop-color="#FF8C00"/>
+                </linearGradient>
+                <linearGradient id="gLogoInner" x1="24" y1="6" x2="24" y2="42">
+                  <stop offset="0%" stop-color="#FFF8E1"/>
+                  <stop offset="100%" stop-color="#FFB300"/>
+                </linearGradient>
+              </defs>
+              <!-- 盾牌外轮廓（完全对称） -->
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gLogo)" />
+              <!-- 盾牌内凹面（光泽层） -->
+              <path d="M24 5.5 L9.5 12.5 L9.5 22 C9.5 30 16 37 24 40.5 C32 37 38.5 30 38.5 22 L38.5 12.5 Z" fill="url(#gLogoInner)" opacity="0.15" />
+              <!-- 对勾（完全居中对称） -->
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+              <!-- 盾牌顶部高光 -->
+              <path d="M24 5 L14 10" stroke="#fff" stroke-width="1" opacity="0.4" stroke-linecap="round" />
+              <path d="M24 5 L34 10" stroke="#fff" stroke-width="1" opacity="0.4" stroke-linecap="round" />
             </svg>
           </div>
           <div class="logo-text">
@@ -23,6 +39,10 @@
           <a class="nav-link" @click.prevent="$router.push('/orders')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             订单
+          </a>
+          <a class="nav-link coupon-nav" @click.prevent="$router.push('/coupon')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/><path d="M2 8h20v4H2z"/><path d="M12 2v6"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/></svg>
+            优惠券
           </a>
           <a v-if="isAdmin" class="nav-link" @click.prevent="$router.push('/drivers')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -157,10 +177,10 @@
       <div class="footer-main">
         <div class="footer-brand">
           <div class="footer-logo">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-              <path d="M16 2L4 8v10c0 7.2 5.12 13.92 12 16 6.88-2.08 12-8.8 12-16V8L16 2z" fill="url(#fGrad)"/>
-              <path d="M10 16l4 4 8-8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <defs><linearGradient id="fGrad" x1="4" y1="2" x2="28" y2="34"><stop stop-color="#FFD700"/><stop offset="1" stop-color="#FFA500"/></linearGradient></defs>
+            <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="gFootLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient></defs>
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gFootLogo)"/>
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>御途租车</span>
           </div>
@@ -519,7 +539,8 @@ const handleCommand = async (cmd) => {
 .header { background: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
 .header-content { max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
 .logo { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-.logo-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.logo-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; transition: transform 0.3s; }
+.logo:hover .logo-icon { transform: scale(1.08) rotate(-3deg); }
 .logo-text { display: flex; flex-direction: column; }
 .logo-name { font-size: 18px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; }
 .logo-sub { font-size: 9px; color: #999; letter-spacing: 1px; }
@@ -530,6 +551,9 @@ const handleCommand = async (cmd) => {
 .ai-nav .ai-rabbit-wrap { line-height: 0; display: flex; align-items: center; justify-content: center; }
 .ai-nav:hover .ai-rabbit-wrap { transform: scale(1.1) translateY(-2px); filter: drop-shadow(0 2px 8px rgba(102,126,234,0.4)); transition: all 0.3s; }
 .ai-label { font-size: 11px; font-weight: 600; color: #667eea; letter-spacing: 0.5px; text-align: center; margin-top: 1px; }
+.coupon-nav { color: #e6a23c; }
+.coupon-nav:hover { background: #fdf6ec; color: #e6a23c; }
+.coupon-nav svg { stroke: #e6a23c; }
 .user-btn { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; cursor: pointer; }
 .user-avatar { width: 100%; height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 14px; transition: transform 0.2s; }
 .user-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; transition: transform 0.2s; }

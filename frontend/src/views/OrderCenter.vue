@@ -432,16 +432,21 @@ const processPayment = async () => {
   await new Promise(resolve => setTimeout(resolve, 1500))
 
   try {
-    // 先支付押金
-    const depositRes = await api.post(`/orders/pay-deposit/${payOrderId.value}`)
-    if (depositRes.code !== 200) {
-      ElMessage.error(depositRes.message)
-      payStep.value = 'confirm'
-      return
+    // 先支付押金（押金已付则跳过）
+    if (payType.value === 'deposit' || payBoth.value) {
+      const currentOrder = orders.value.find(o => o.id === payOrderId.value)
+      if (!currentOrder?.depositPaid) {
+        const depositRes = await api.post(`/orders/pay-deposit/${payOrderId.value}`)
+        if (depositRes.code !== 200) {
+          ElMessage.error(depositRes.message)
+          payStep.value = 'confirm'
+          return
+        }
+      }
     }
 
-    // 如果选择一起支付租金
-    if (payBoth.value && payType.value === 'deposit') {
+    // 支付租金
+    if (payType.value === 'rental' || payBoth.value) {
       const rentalRes = await api.post(`/orders/pay-rental/${payOrderId.value}`)
       if (rentalRes.code !== 200) {
         ElMessage.error(rentalRes.message)

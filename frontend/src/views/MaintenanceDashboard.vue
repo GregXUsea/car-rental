@@ -4,10 +4,12 @@
       <div class="header-content">
         <div class="logo" @click="$router.push('/')">
           <div class="logo-icon">
-            <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
-              <path d="M20 2L4 10v14c0 9 7 17 16 20 9-3 16-11 16-20V10L20 2z" fill="url(#dashLogo)"/>
-              <path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <defs><linearGradient id="dashLogo" x1="4" y1="2" x2="36" y2="36"><stop stop-color="#FFD700"/><stop offset="1" stop-color="#FFA500"/></linearGradient></defs>
+            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+              <defs>
+                <linearGradient id="gDashLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+              </defs>
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gDashLogo)"/>
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
           <div class="logo-text">
@@ -107,7 +109,7 @@
               <span class="dot low-dot"></span>低风险
             </button>
           </div>
-          <button class="alert-btn" @click="alertVisible = true" v-if="alertTotal > 0">
+          <button class="alert-btn" @click="alertVisible = true; alertFilter = ''" v-if="alertTotal > 0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             预警看板
             <span class="alert-count">{{ alertTotal }}</span>
@@ -325,25 +327,40 @@
       <div class="alert-content">
         <!-- 预警统计 -->
         <div class="alert-stats">
-          <div class="alert-stat-card critical">
+          <div class="alert-stat-card critical" :class="{ clickable: alertCritical.length, active: alertFilter === 'critical' }" @click="toggleAlertFilter('critical')">
             <div class="asc-num">{{ alertCritical.length }}</div>
             <div class="asc-label">🚨 立即维修</div>
             <div class="asc-desc">高风险 + 超期未保养</div>
           </div>
-          <div class="alert-stat-card warning">
+          <div class="alert-stat-card warning" :class="{ clickable: alertWarning.length, active: alertFilter === 'warning' }" @click="toggleAlertFilter('warning')">
             <div class="asc-num">{{ alertWarning.length }}</div>
             <div class="asc-label">⚠️ 尽快安排</div>
             <div class="asc-desc">中风险或里程过高</div>
           </div>
-          <div class="alert-stat-card info">
+          <div class="alert-stat-card info" :class="{ clickable: alertInfo.length, active: alertFilter === 'info' }" @click="toggleAlertFilter('info')">
             <div class="asc-num">{{ alertInfo.length }}</div>
             <div class="asc-label">📋 建议关注</div>
             <div class="asc-desc">接近保养周期</div>
           </div>
         </div>
 
+        <!-- 筛选提示 -->
+        <div v-if="alertFilter" class="alert-filter-bar">
+          <span class="filter-label">
+            当前筛选：
+            <strong v-if="alertFilter === 'critical'">🚨 立即维修</strong>
+            <strong v-else-if="alertFilter === 'warning'">⚠️ 尽快安排</strong>
+            <strong v-else-if="alertFilter === 'info'">📋 建议关注</strong>
+            （{{ filteredAlertList.length }} 辆）
+          </span>
+          <button class="filter-clear-btn" @click="alertFilter = ''">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            显示全部
+          </button>
+        </div>
+
         <!-- 立即维修 -->
-        <div v-if="alertCritical.length" class="alert-section critical-section">
+        <div v-if="showSection('critical') && alertCritical.length" ref="sectionCritical" class="alert-section critical-section">
           <h3 class="alert-section-title">🚨 立即维修 — 需要马上处理</h3>
           <div v-for="item in alertCritical" :key="item.car.id" class="alert-card critical-card">
             <div class="alert-card-header">
@@ -366,7 +383,7 @@
         </div>
 
         <!-- 尽快安排 -->
-        <div v-if="alertWarning.length" class="alert-section warning-section">
+        <div v-if="showSection('warning') && alertWarning.length" ref="sectionWarning" class="alert-section warning-section">
           <h3 class="alert-section-title">⚠️ 尽快安排 — 建议近期处理</h3>
           <div v-for="item in alertWarning" :key="item.car.id" class="alert-card warning-card">
             <div class="alert-card-header">
@@ -389,7 +406,7 @@
         </div>
 
         <!-- 建议关注 -->
-        <div v-if="alertInfo.length" class="alert-section info-section">
+        <div v-if="showSection('info') && alertInfo.length" ref="sectionInfo" class="alert-section info-section">
           <h3 class="alert-section-title">📋 建议关注 — 接近保养周期</h3>
           <div v-for="item in alertInfo" :key="item.car.id" class="alert-card info-card">
             <div class="alert-card-header">
@@ -442,8 +459,36 @@ const aiMode = ref(false)
 const detailVisible = ref(false)
 const detailItem = ref(null)
 
+// 预警看板区域refs
+const sectionCritical = ref(null)
+const sectionWarning = ref(null)
+const sectionInfo = ref(null)
+
 // ====== 预警看板 ======
 const alertVisible = ref(false)
+const alertFilter = ref('') // 当前筛选：'' 显示全部, 'critical', 'warning', 'info'
+
+const toggleAlertFilter = (level) => {
+  if (!['critical', 'warning', 'info'].includes(level)) return
+  // 对应级别有数据才允许筛选
+  const count = level === 'critical' ? alertCritical.value.length
+    : level === 'warning' ? alertWarning.value.length
+    : alertInfo.value.length
+  if (!count) return
+  alertFilter.value = alertFilter.value === level ? '' : level
+}
+
+const showSection = (level) => {
+  if (!alertFilter.value) return true
+  return alertFilter.value === level
+}
+
+const filteredAlertList = computed(() => {
+  if (alertFilter.value === 'critical') return alertCritical.value
+  if (alertFilter.value === 'warning') return alertWarning.value
+  if (alertFilter.value === 'info') return alertInfo.value
+  return [...alertCritical.value, ...alertWarning.value, ...alertInfo.value]
+})
 
 // 预警分级逻辑
 const alertCritical = computed(() => {
@@ -745,9 +790,21 @@ onMounted(() => { loadAll() })
 @keyframes alertPulse { 0%,100%{box-shadow:0 0 0 0 rgba(245,108,108,0.3)} 50%{box-shadow:0 0 0 6px rgba(245,108,108,0)} }
 
 /* 预警看板弹窗 */
-.alert-content { max-height: 65vh; overflow-y: auto; }
+.alert-content { max-height: 65vh; overflow-y: auto; scroll-behavior: smooth; }
+.alert-content::-webkit-scrollbar { width: 10px; }
+.alert-content::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 5px; }
+.alert-content::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 5px; border: 2px solid #f5f5f5; }
+.alert-content::-webkit-scrollbar-thumb:hover { background: #909399; }
 .alert-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
-.alert-stat-card { padding: 16px; border-radius: 12px; text-align: center; }
+.alert-stat-card { padding: 16px; border-radius: 12px; text-align: center; transition: all 0.2s; }
+.alert-stat-card.clickable { cursor: pointer; }
+.alert-stat-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.alert-stat-card.clickable.critical:hover { border-color: #f56c6c; }
+.alert-stat-card.clickable.warning:hover { border-color: #e6a23c; }
+.alert-stat-card.clickable.info:hover { border-color: #409eff; }
+.alert-stat-card.active.critical { border: 2px solid #f56c6c; box-shadow: 0 4px 16px rgba(245,108,108,0.25); }
+.alert-stat-card.active.warning { border: 2px solid #e6a23c; box-shadow: 0 4px 16px rgba(230,162,60,0.25); }
+.alert-stat-card.active.info { border: 2px solid #409eff; box-shadow: 0 4px 16px rgba(64,158,255,0.25); }
 .alert-stat-card.critical { background: linear-gradient(135deg, #fef0f0, #fde2e2); border: 1px solid #fbc4c4; }
 .alert-stat-card.warning { background: linear-gradient(135deg, #fdf6ec, #faecd8); border: 1px solid #f5dab1; }
 .alert-stat-card.info { background: linear-gradient(135deg, #ecf5ff, #d9ecff); border: 1px solid #b3d8ff; }
@@ -792,6 +849,13 @@ onMounted(() => { loadAll() })
 .alert-empty { text-align: center; padding: 40px; }
 .alert-empty h3 { color: #67c23a; margin: 12px 0 6px; }
 .alert-empty p { color: #999; font-size: 14px; }
+
+/* 筛选提示栏 */
+.alert-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; margin-bottom: 16px; background: #f0f2ff; border-radius: 8px; border: 1px solid #d4d8ff; }
+.filter-label { font-size: 13px; color: #666; }
+.filter-label strong { color: #667eea; }
+.filter-clear-btn { display: flex; align-items: center; gap: 4px; padding: 5px 12px; background: #fff; border: 1px solid #d4d8ff; border-radius: 6px; font-size: 12px; color: #667eea; cursor: pointer; transition: all 0.2s; }
+.filter-clear-btn:hover { background: #667eea; color: #fff; border-color: #667eea; }
 .cache-time { font-size: 12px; color: #999; background: #f5f7fa; padding: 4px 10px; border-radius: 6px; }
 .filter-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .source-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px; }

@@ -175,12 +175,31 @@
           <div class="cost-detail">
             <div class="cost-row"><span>车辆租金</span><span>¥{{ car?.pricePerDay }}/天 × {{ estimatedDays }}天 = ¥{{ carCost }}</span></div>
             <div class="cost-row" v-if="rentForm.driverId"><span>司机服务费</span><span class="driver-fee">¥150/天 × {{ estimatedDays }}天 = ¥{{ driverCost }}</span></div>
-            <div class="cost-row discount" v-if="isNewUser && parseFloat(discount) > 0">
-              <span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-                新用户优惠
+            <!-- 优惠券行（可点击） -->
+            <div v-if="couponStatus.eligible" class="cost-row coupon-row" @click="showCouponPopover = !showCouponPopover">
+              <span class="coupon-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/><path d="M2 8h20v4H2z"/><path d="M12 2v6"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/></svg>
+                新用户首单优惠
+                <span class="coupon-tag-mini">最优</span>
               </span>
               <span class="discount-amount">-¥{{ discount }}</span>
+            </div>
+            <!-- 优惠券详情展开 -->
+            <div v-if="showCouponPopover && couponStatus.eligible" class="coupon-popover">
+              <div class="coupon-popover-header">
+                <span class="coupon-popover-icon">🎫</span>
+                <div>
+                  <div class="coupon-popover-title">新用户首单优惠券</div>
+                  <div class="coupon-popover-sub">首次租车减免50%，最高减200元</div>
+                </div>
+                <span class="coupon-popover-amount">-¥{{ discount }}</span>
+              </div>
+              <div class="coupon-popover-rules">
+                <div class="coupon-rule">✓ 注册{{ couponStatus.daysLeft > 0 ? '30天' : '' }}内可用{{ couponStatus.daysLeft > 0 ? `（剩余${couponStatus.daysLeft}天）` : '' }}</div>
+                <div class="coupon-rule">✓ 仅限首次下单，全车型通用</div>
+                <div class="coupon-rule">✓ 订单金额50%减免，最高200元</div>
+              </div>
+              <div class="coupon-popover-status">已自动勾选最优方案</div>
             </div>
             <div class="cost-row total"><span>合计</span><span>¥{{ totalCost }}</span></div>
             <div class="cost-row"><span>押金（可退）</span><span>¥{{ car?.deposit }}</span></div>
@@ -247,12 +266,31 @@
           <div class="cost-detail">
             <div class="cost-row"><span>车辆租金</span><span>¥{{ car?.pricePerDay }}/天 × {{ estimatedDays }}天 = ¥{{ carCost }}</span></div>
             <div class="cost-row" v-if="rentForm.driverId"><span>司机服务费</span><span>¥150/天 × {{ estimatedDays }}天 = ¥{{ driverCost }}</span></div>
-            <div class="cost-row discount" v-if="isNewUser && parseFloat(discount) > 0">
-              <span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-                新用户优惠
+            <!-- 优惠券行（可点击） -->
+            <div v-if="couponStatus.eligible" class="cost-row coupon-row" @click="showCouponPopover = !showCouponPopover">
+              <span class="coupon-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/><path d="M2 8h20v4H2z"/><path d="M12 2v6"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/></svg>
+                新用户首单优惠
+                <span class="coupon-tag-mini">最优</span>
               </span>
               <span class="discount-amount">-¥{{ discount }}</span>
+            </div>
+            <!-- 优惠券详情展开 -->
+            <div v-if="showCouponPopover && couponStatus.eligible" class="coupon-popover">
+              <div class="coupon-popover-header">
+                <span class="coupon-popover-icon">🎫</span>
+                <div>
+                  <div class="coupon-popover-title">新用户首单优惠券</div>
+                  <div class="coupon-popover-sub">首次租车减免50%，最高减200元</div>
+                </div>
+                <span class="coupon-popover-amount">-¥{{ discount }}</span>
+              </div>
+              <div class="coupon-popover-rules">
+                <div class="coupon-rule">✓ 注册{{ couponStatus.daysLeft > 0 ? '30天' : '' }}内可用{{ couponStatus.daysLeft > 0 ? `（剩余${couponStatus.daysLeft}天）` : '' }}</div>
+                <div class="coupon-rule">✓ 仅限首次下单，全车型通用</div>
+                <div class="coupon-rule">✓ 订单金额50%减免，最高200元</div>
+              </div>
+              <div class="coupon-popover-status">已自动勾选最优方案</div>
             </div>
             <div class="cost-row total"><span>预计合计</span><span>¥{{ totalCost }}</span></div>
             <div class="cost-row"><span>押金（可退）</span><span>¥{{ car?.deposit }}</span></div>
@@ -354,6 +392,17 @@ const occupiedSlots = ref([])
 
 // 支付相关
 const showPayDialog = ref(false)
+
+// 优惠券状态
+const couponStatus = ref({ eligible: false, daysLeft: 0, expireDate: null })
+const showCouponPopover = ref(false)
+
+const loadCouponStatus = async () => {
+  try {
+    const res = await api.get('/user/coupon-status')
+    if (res.code === 200) couponStatus.value = res.data
+  } catch (e) { /* 静默处理 */ }
+}
 const payStep = ref('confirm') // confirm, processing, success
 const payType = ref('deposit') // deposit, rental
 const payAmount = ref(0)
@@ -373,6 +422,8 @@ onMounted(async () => {
   else { ElMessage.error(res.message); router.push('/') }
   loadDrivers()
   loadAllCars()
+  // 加载优惠券状态
+  loadCouponStatus()
 })
 
 // ====== 左右切换 ======
@@ -410,8 +461,14 @@ const navigateToCar = (id) => {
   router.push({ name: 'CarDetail', params: { id } })
 }
 
-// 返回上一页（从哪里来回到哪里去）
+// 返回：如果来自AI助手，直接回AI；否则正常回退
 const goBack = () => {
+  const fromAI = sessionStorage.getItem('ai_last_conv_id')
+  if (fromAI) {
+    // 来自AI助手，直接跳转（不走back，避免多次切换要多次返回）
+    router.push('/ai-assistant')
+    return
+  }
   if (window.history.length > 1) {
     router.back()
   } else {
@@ -653,7 +710,7 @@ const carCost = computed(() => car.value ? (car.value.pricePerDay * estimatedDay
 const driverCost = computed(() => rentForm.value.driverId ? (150 * estimatedDays.value).toFixed(2) : '0.00')
 const originalTotal = computed(() => (parseFloat(carCost.value) + parseFloat(driverCost.value)).toFixed(2))
 
-const isNewUser = computed(() => localStorage.getItem('isNewUser') === 'true')
+const isNewUser = computed(() => couponStatus.value.eligible === true)
 
 const discount = computed(() => {
   if (!isNewUser.value) return '0.00'
@@ -1001,6 +1058,25 @@ const handleImgError = (e) => {
 .driver-fee { color: #e6a23c; font-weight: 600; }
 .driver-price-hint { font-size: 12px; color: #e6a23c; margin-top: 4px; padding-left: 2px; }
 .discount-amount { font-weight: 600; color: #f56c6c; }
+
+/* 优惠券行 */
+.coupon-row { cursor: pointer; padding: 10px 8px; border-radius: 6px; transition: background 0.2s; border-bottom: 1px dashed #eee !important; }
+.coupon-row:hover { background: #fef0f0; }
+.coupon-label { display: flex; align-items: center; gap: 6px; color: #f56c6c; font-weight: 500; }
+.coupon-label svg { flex-shrink: 0; }
+.coupon-tag-mini { font-size: 10px; padding: 1px 6px; background: linear-gradient(135deg, #f56c6c, #e74c3c); color: #fff; border-radius: 8px; font-weight: 600; }
+
+/* 优惠券详情弹出 */
+.coupon-popover { background: #fff; border: 1px solid #fbc4c4; border-radius: 10px; padding: 14px; margin: 4px 0 8px; animation: couponSlide 0.2s ease; }
+@keyframes couponSlide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.coupon-popover-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #f0f0f0; }
+.coupon-popover-icon { font-size: 28px; }
+.coupon-popover-title { font-size: 14px; font-weight: 600; color: #333; }
+.coupon-popover-sub { font-size: 12px; color: #999; margin-top: 2px; }
+.coupon-popover-amount { font-size: 18px; font-weight: 800; color: #f56c6c; margin-left: auto; }
+.coupon-popover-rules { margin-bottom: 8px; }
+.coupon-rule { font-size: 12px; color: #666; line-height: 1.8; }
+.coupon-popover-status { font-size: 11px; color: #67c23a; background: #f0f9eb; padding: 6px 10px; border-radius: 6px; text-align: center; border: 1px solid #c2e7b0; }
 .time-warning { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; color: #e6a23c; background: #fffbe6; padding: 6px 10px; border-radius: 6px; border: 1px solid #ffe58f; }
 
 /* 已占用时间段 */
