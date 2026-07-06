@@ -14,7 +14,13 @@
     <main class="support-main">
       <div class="chat-header">
         <div class="admin-info">
-          <div class="admin-avatar">管</div>
+          <div class="admin-avatar logo-avatar">
+            <svg width="24" height="24" viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="gLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient></defs>
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gLogo)"/>
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
           <div class="admin-detail">
             <span class="admin-name">御途客服</span>
             <span class="admin-status" :class="{ online: adminOnline }">
@@ -31,7 +37,13 @@
         </div>
         <div v-for="msg in messages" :key="msg.id"
              :class="['message', { mine: msg.senderId === currentUserId }]">
-          <div v-if="msg.senderId !== currentUserId" class="msg-avatar">管</div>
+          <div v-if="msg.senderId !== currentUserId" class="msg-avatar logo-avatar">
+            <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
+              <defs><linearGradient id="gMsgLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient></defs>
+              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gMsgLogo)"/>
+              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
           <div v-else class="msg-avatar user">我</div>
           <div class="msg-content">
             <div class="msg-text">{{ msg.content }}</div>
@@ -233,6 +245,7 @@ onUnmounted(() => {
 .message.mine { margin-left: auto; flex-direction: row-reverse; }
 .msg-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
 .msg-avatar.user { background: #67c23a; }
+.logo-avatar { background: linear-gradient(135deg, #FFD700, #FF8C00); padding: 6px; }
 .msg-content { background: #f5f5f5; padding: 10px 14px; border-radius: 12px; }
 .message.mine .msg-content { background: #667eea; color: #fff; }
 .msg-text { font-size: 14px; line-height: 1.5; }
