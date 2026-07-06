@@ -93,47 +93,63 @@ public class AIService {
     public Map<String, Object> chat(String userMessage, List<Map<String, String>> history) {
         Map<String, Object> result = new HashMap<>();
 
-        // 判断是否为租车相关问题
-        boolean isCarRelated = isCarRelatedQuestion(userMessage);
+        // 判断是否为明确的租车需求（需要推荐车辆）
+        boolean isRentalNeed = isRentalNeedQuestion(userMessage);
 
-        if (isCarRelated) {
-            // 租车相关：调用推荐逻辑
+        if (isRentalNeed) {
+            // 明确租车需求：调用推荐逻辑
             AIRecommendResult recommendResult = recommendCars(userMessage);
             result.put("type", "recommend");
             result.put("reply", recommendResult.getSummary());
             result.put("recommendations", recommendResult.getRecommendations());
         } else {
-            // 通用问题：直接调用AI回答
+            // 其他所有问题（包括汽车知识、通用问答）：调用AI回答
             if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
                 result.put("type", "text");
                 result.put("reply", generateLocalReply(userMessage));
             } else {
                 try {
-                    String systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。你是一个知识渊博、善于分析的AI助手。\n\n" +
-                            "## 你的能力\n" +
-                            "1. **汽车专业知识**：车型对比、性能分析、保养建议、故障排查、购车建议\n" +
-                            "2. **租车服务**：车型推荐、价格说明、流程介绍、优惠活动\n" +
-                            "3. **通用问答**：生活百科、工作建议、学习辅导、技术问题、旅行规划\n" +
-                            "4. **聊天互动**：友好陪伴、情感支持、创意建议\n\n" +
+                    String systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。你是一个知识渊博、善于分析、乐于助人的AI助手。\n\n" +
+                            "## 你的核心能力\n" +
+                            "1. **汽车专业知识**：车型对比、性能分析、保养建议、故障排查、购车建议、驾驶技巧\n" +
+                            "2. **租车服务**：车型推荐、价格说明、流程介绍、优惠活动、押金退款、保险说明\n" +
+                            "3. **出行规划**：路线推荐、景点介绍、自驾攻略、异地还车、机场接送\n" +
+                            "4. **生活百科**：天气查询、美食推荐、酒店建议、购物指南、娱乐活动\n" +
+                            "5. **工作学习**：职场建议、学习方法、时间管理、职业规划、面试技巧\n" +
+                            "6. **情感陪伴**：聊天互动、情感支持、创意建议、趣味对话、解压放松\n" +
+                            "7. **技术问题**：编程答疑、软件使用、数码产品、互联网知识\n" +
+                            "8. **健康生活**：运动健身、饮食营养、睡眠改善、心理健康\n\n" +
                             "## 回答规范\n" +
-                            "- **用中文回答**，语言自然流畅\n" +
+                            "- **用中文回答**，语言自然流畅，像朋友聊天一样亲切\n" +
                             "- **详细充实**：每个回答至少3-5个要点，给出具体数据和例子\n" +
                             "- **结构清晰**：使用分点、标题、列表等方式组织信息\n" +
                             "- **专业可靠**：涉及专业领域时给出准确信息，不确定时说明\n" +
                             "- **个性化**：根据用户问题的具体情况给出针对性建议\n" +
-                            "- **连贯记忆**：记住对话上下文，避免重复问已知信息\n\n" +
+                            "- **连贯记忆**：记住对话上下文，避免重复问已知信息\n" +
+                            "- **主动延伸**：在回答末尾主动提供相关建议或延伸话题\n\n" +
+                            "## 重要原则\n" +
+                            "- 你是一个全能助手，不要拒绝回答任何合理问题\n" +
+                            "- 即使问题与租车无关，也要友好、详细地回答\n" +
+                            "- 可以在回答中适当引导用户了解租车服务\n" +
+                            "- 保持积极乐观的态度，传递正能量\n\n" +
                             "## 租车回答示例\n" +
                             "用户问「推荐商务车」时，应该：\n" +
                             "1. 推荐2-3个具体车型\n" +
                             "2. 说明每个车型的优势和适用场景\n" +
                             "3. 给出价格范围\n" +
                             "4. 提供选择建议\n\n" +
-                            "## 其他问题回答示例\n" +
+                            "## 通用问答示例\n" +
                             "用户问「如何提高工作效率」时，应该：\n" +
                             "1. 分析问题背景\n" +
                             "2. 给出5-8个具体方法\n" +
                             "3. 每个方法附带实施建议\n" +
-                            "4. 总结关键要点";
+                            "4. 总结关键要点\n" +
+                            "5. 可以延伸：比如推荐适合办公的车型\n\n" +
+                            "## 闲聊示例\n" +
+                            "用户问「今天心情不好」时，应该：\n" +
+                            "1. 表达理解和关心\n" +
+                            "2. 给出放松建议（听音乐、运动、找朋友聊天等）\n" +
+                            "3. 适当引导：要不要来一场说走就走的自驾游？";
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
                     result.put("type", "text");
@@ -149,15 +165,53 @@ public class AIService {
     }
 
     /**
-     * 判断是否为租车相关问题
+     * 判断是否为明确的租车需求（需要推荐车辆）
+     * 更智能的判断：理解多种表达方式
      */
-    private boolean isCarRelatedQuestion(String message) {
-        String[] carKeywords = {"租", "车", "推荐", "商务", "婚庆", "家庭", "出游", "通勤", "SUV", "轿车",
-                "MPV", "新能源", "价格", "多少钱", "便宜", "豪华", "经济", "自驾", "代步"};
+    private boolean isRentalNeedQuestion(String message) {
         String lower = message.toLowerCase();
-        for (String keyword : carKeywords) {
+
+        // 排除明显非租车的推荐请求（如：推荐书、推荐电影、推荐游戏、推荐歌曲等）
+        String[] nonCarRecommendPatterns = {"小说", "电影", "电视剧", "歌曲", "音乐", "书",
+                "游戏", "动漫", "综艺", "节目", "app", "软件", "美食", "餐厅", "旅游景点",
+                "酒店", "机票", "火车票", "快递", "外卖"};
+        for (String pattern : nonCarRecommendPatterns) {
+            if (lower.contains(pattern)) return false;
+        }
+
+        // 直接租车需求（必须包含"租"字）
+        if (lower.contains("租")) {
+            // "想租"、"需要租"、"租什么车"等明确意图
+            String[] directRental = {"想租", "需要租", "租什么", "租哪", "怎么租", "何时租", "租车",
+                    "租赁", "用车", "包车", "自驾"};
+            for (String keyword : directRental) {
+                if (lower.contains(keyword)) return true;
+            }
+            // "租" + 场景词
+            String[] sceneKeywords = {"商务", "婚庆", "婚礼", "家庭", "出游", "旅游", "通勤", "代步",
+                    "SUV", "轿车", "MPV", "新能源", "豪华", "经济", "便宜", "上班", "过年", "暑假",
+                    "周末", "节假日", "长途", "短途", "机场", "高铁"};
+            for (String scene : sceneKeywords) {
+                if (lower.contains(scene)) return true;
+            }
+        }
+
+        // 带"车"字的推荐请求
+        if (lower.contains("车")) {
+            String[] carRecommend = {"推荐", "有没有", "选哪", "哪辆", "什么车好", "哪款", "帮我选",
+                    "适合", "合适", "比较好", "不错", "性价比", "便宜", "划算"};
+            for (String keyword : carRecommend) {
+                if (lower.contains(keyword)) return true;
+            }
+        }
+
+        // 询问车型、价格、座位数等（隐含租车意图）
+        String[] implicitRental = {"五座", "七座", "七座车", "五座车", "几个座", "多少座",
+                "日租", "天租", "每小时", "押金", "租金", "违章", "保险"};
+        for (String keyword : implicitRental) {
             if (lower.contains(keyword)) return true;
         }
+
         return false;
     }
 
@@ -167,26 +221,31 @@ public class AIService {
     private String generateLocalReply(String message) {
         String lower = message.toLowerCase();
 
-        if (lower.contains("你好") || lower.contains("hi") || lower.contains("hello")) {
-            return "你好！我是御途租车的AI助手，很高兴为您服务。请问有什么可以帮您的？\n\n" +
+        // 问候
+        if (lower.contains("你好") || lower.contains("hi") || lower.contains("hello") || lower.contains("在吗")) {
+            return "你好！我是御途租车的AI助手「途途」，很高兴为您服务！😊\n\n" +
                     "我可以帮您：\n" +
                     "🚗 推荐合适的车型\n" +
                     "💰 查询租车价格\n" +
                     "📋 了解租车流程\n" +
-                    "🔧 车辆保养建议";
+                    "🔧 车辆保养建议\n" +
+                    "💬 回答各种问题\n\n" +
+                    "请问有什么可以帮您的？";
         }
 
+        // 价格相关
         if (lower.contains("价格") || lower.contains("多少钱") || lower.contains("费用")) {
             return "我们的车辆日租金从 ¥118 到 ¥888 不等，具体取决于车型：\n\n" +
                     "• 经济型（飞度、逸动等）：¥118-158/天\n" +
                     "• 舒适型（卡罗拉、雅阁等）：¥158-238/天\n" +
                     "• 豪华型（宝马5系、奔驰E级等）：¥438-888/天\n" +
-                    "• 新能源（汉EV、Model 3等）：¥248-388/天\n\n" +
-                    "新用户首单可享5折优惠，最高减200元！\n" +
+                    "• 新能源（理想L7、蔚来ES6等）：¥248-398/天\n\n" +
+                    "🎉 新用户首单可享5折优惠，最高减200元！\n\n" +
                     "如需了解具体车型价格，请告诉我您的需求。";
         }
 
-        if (lower.contains("流程") || lower.contains("怎么租") || lower.contains("如何")) {
+        // 流程相关
+        if (lower.contains("流程") || lower.contains("怎么租") || lower.contains("如何") || lower.contains("步骤")) {
             return "租车流程非常简单：\n\n" +
                     "1️⃣ 注册/登录账号\n" +
                     "2️⃣ 浏览车型，选择心仪的车辆\n" +
@@ -194,19 +253,44 @@ public class AIService {
                     "4️⃣ 支付押金\n" +
                     "5️⃣ 到店取车，开始旅程\n" +
                     "6️⃣ 用完后归还车辆，结算费用\n\n" +
-                    "新用户注册即享200元优惠券，首次租车5折起！";
+                    "🎉 新用户注册即享200元优惠券，首次租车5折起！";
         }
 
-        if (lower.contains("保养") || lower.contains("维护")) {
-            return "我们的车辆都有严格的保养计划：\n\n" +
-                    "• 每5000-10000km进行常规保养\n" +
-                    "• 每30000km进行大保养\n" +
-                    "• 所有车辆定期检查刹车、轮胎、机油\n" +
-                    "• 新能源车定期检测电池健康度\n\n" +
-                    "您可以放心使用，所有车辆都经过专业维护！";
+        // 保养知识
+        if (lower.contains("保养") || lower.contains("维护") || lower.contains("多久保养")) {
+            return "车辆保养知识：\n\n" +
+                    "📌 常规保养周期：\n" +
+                    "• 每5000-10000km或每6个月进行常规保养\n" +
+                    "• 每30000-50000km进行大保养\n\n" +
+                    "📌 保养项目：\n" +
+                    "• 更换机油、机滤\n" +
+                    "• 检查刹车片、轮胎\n" +
+                    "• 检查各种液位\n" +
+                    "• 新能源车检测电池健康度\n\n" +
+                    "📌 注意事项：\n" +
+                    "• 长途行驶后建议检查车况\n" +
+                    "• 异常响声及时检查\n" +
+                    "• 定期检查轮胎气压";
         }
 
-        if (lower.contains("客服") || lower.contains("电话") || lower.contains("联系")) {
+        // 汽车知识
+        if (lower.contains("汽车") || lower.contains("轿车") || lower.contains("suv") || lower.contains("新能源")) {
+            return "汽车知识科普：\n\n" +
+                    "🚗 车型分类：\n" +
+                    "• 轿车：舒适省油，适合日常通勤\n" +
+                    "• SUV：空间大、通过性强，适合家庭出游\n" +
+                    "• MPV：座位多、空间超大，适合商务接待\n" +
+                    "• 新能源：用车成本低，环保节能\n\n" +
+                    "💡 选车建议：\n" +
+                    "• 预算有限选经济型轿车\n" +
+                    "• 家庭出行选7座SUV或MPV\n" +
+                    "• 商务接待选豪华品牌\n" +
+                    "• 城市通勤选新能源\n\n" +
+                    "想了解更多具体车型，可以告诉我您的需求！";
+        }
+
+        // 客服联系
+        if (lower.contains("客服") || lower.contains("电话") || lower.contains("联系") || lower.contains("投诉")) {
             return "您可以通过以下方式联系我们：\n\n" +
                     "📞 客服热线：400-888-8888\n" +
                     "📱 微信客服：YUTU_CAR\n" +
@@ -215,16 +299,134 @@ public class AIService {
                     "如有紧急问题，可直接拨打客服热线。";
         }
 
-        return "感谢您的提问！我是御途租车的AI助手，主要擅长：\n\n" +
+        // 天气/生活
+        if (lower.contains("天气") || lower.contains("今天")) {
+            return "我是AI助手，暂时无法查询实时天气哦～\n\n" +
+                    "不过我可以帮您：\n" +
+                    "🚗 推荐适合出行的车型\n" +
+                    "📋 了解租车流程\n" +
+                    "💰 查询租车价格\n\n" +
+                    "请问还有什么可以帮您的？";
+        }
+
+        // 违章相关
+        if (lower.contains("违章") || lower.contains("罚款") || lower.contains("扣分")) {
+            return "关于租车违章的说明：\n\n" +
+                    "📌 违章处理规则：\n" +
+                    "• 租车期间产生的违章由承租人承担\n" +
+                    "• 违章罚款 + 扣分均由承租人负责\n" +
+                    "• 我们会协助处理违章查询\n\n" +
+                    "📌 违章处理流程：\n" +
+                    "1. 还车后15个工作日内查询违章\n" +
+                    "2. 如有违章，我们会通知您\n" +
+                    "3. 您可通过交管12123或到交警大队处理\n\n" +
+                    "📌 注意事项：\n" +
+                    "• 请遵守交通规则，安全驾驶\n" +
+                    "• 如对违章有异议，可联系客服协助处理";
+        }
+
+        // 保险相关
+        if (lower.contains("保险") || lower.contains("理赔") || lower.contains("事故")) {
+            return "关于租车保险的说明：\n\n" +
+                    "📌 基础保险（已包含在租金中）：\n" +
+                    "• 交强险（法定必购）\n" +
+                    "• 车损险（1500元以下免赔）\n\n" +
+                    "📌 可选增值服务：\n" +
+                    "• 不计免赔：¥30/天，1500元以下免赔转为0\n" +
+                    "• 车身划痕险：¥20/天\n" +
+                    "• 轮胎险：¥15/天\n\n" +
+                    "📌 事故处理：\n" +
+                    "1. 确保人员安全，及时报警\n" +
+                    "2. 拍照保留现场证据\n" +
+                    "3. 联系客服报备\n" +
+                    "4. 按指引进行理赔";
+        }
+
+        // 驾照相关
+        if (lower.contains("驾照") || lower.contains("驾驶证") || lower.contains("驾龄")) {
+            return "关于租车驾照要求：\n\n" +
+                    "📌 基本要求：\n" +
+                    "• 持有有效期内的中国驾照\n" +
+                    "• 驾照状态正常（未吊销/暂扣）\n" +
+                    "• 实习期可租小型汽车（C1/C2）\n\n" +
+                    "📌 不同车型要求：\n" +
+                    "• 小型车（轿车/SUV）：C1/C2即可\n" +
+                    "• 中型车（MPV 7座以上）：B1及以上\n" +
+                    "• 豪华车：建议驾龄1年以上\n\n" +
+                    "📌 取车时需携带：\n" +
+                    "• 本人有效驾照\n" +
+                    "• 身份证原件";
+        }
+
+        // 还车相关
+        if (lower.contains("还车") || lower.contains("归还") || lower.contains("退车")) {
+            return "还车流程说明：\n\n" +
+                    "📌 还车时间：\n" +
+                    "• 按订单约定时间归还\n" +
+                    "• 提前还车可退还差额\n" +
+                    "• 超时还车可能产生额外费用\n\n" +
+                    "📌 还车地点：\n" +
+                    "• 原取车门店（默认）\n" +
+                    "• 支持异地还车（需提前申请，可能产生费用）\n\n" +
+                    "📌 还车流程：\n" +
+                    "1. 联系客服确认还车\n" +
+                    "2. 到店进行车辆检查\n" +
+                    "3. 确认里程和油量\n" +
+                    "4. 结算费用，退还押金\n\n" +
+                    "📌 注意事项：\n" +
+                    "• 还车前加满油\n" +
+                    "• 清理车内个人物品\n" +
+                    "• 检查有无新增损伤";
+        }
+
+        // 优惠券相关
+        if (lower.contains("优惠券") || lower.contains("优惠") || lower.contains("折扣") || lower.contains("打折")) {
+            return "当前优惠活动：\n\n" +
+                    "🎉 新用户专享：\n" +
+                    "• 注册30天内首单5折\n" +
+                    "• 最高优惠200元\n" +
+                    "• 无门槛使用\n\n" +
+                    "📌 优惠规则：\n" +
+                    "• 每用户限享一次\n" +
+                    "• 不可与其他优惠叠加\n" +
+                    "• 仅限首笔订单使用\n\n" +
+                    "📌 如何使用：\n" +
+                    "• 符合条件的用户在支付时自动享受\n" +
+                    "• 无需手动领取\n\n" +
+                    "更多优惠活动请关注首页公告！";
+        }
+
+        // 支付方式
+        if (lower.contains("支付") || lower.contains("付款") || lower.contains("押金") || lower.contains("退款")) {
+            return "支付相关说明：\n\n" +
+                    "📌 支付方式：\n" +
+                    "• 银行卡支付（模拟）\n" +
+                    "• 支持借记卡/信用卡\n\n" +
+                    "📌 押金说明：\n" +
+                    "• 押金金额由车型决定（1500-15000元）\n" +
+                    "• 还车后1-3个工作日退还\n" +
+                    "• 如有违章/损伤，扣除相应费用后退还\n\n" +
+                    "📌 退款规则：\n" +
+                    "• 提前还车：退还差额\n" +
+                    "• 取消订单：按取消时间退还\n" +
+                    "• 退款原路返回";
+        }
+
+        // 默认回复
+        return "感谢您的提问！我是御途租车的AI助手「途途」，我可以：\n\n" +
                 "🚗 根据需求推荐车型\n" +
                 "💰 查询租车价格和优惠\n" +
                 "📋 解答租车流程问题\n" +
-                "🔧 提供车辆保养建议\n\n" +
+                "🔧 提供车辆保养建议\n" +
+                "💬 回答各种汽车相关问题\n" +
+                "📝 回答通用知识问题\n\n" +
                 "您可以试着问我：\n" +
                 "• 「推荐一辆商务用车」\n" +
                 "• 「家庭出游租什么车好？」\n" +
-                "• 「新能源车有哪些？」\n" +
-                "• 「租车多少钱一天？」";
+                "• 「SUV和轿车哪个好？」\n" +
+                "• 「新能源车有哪些优点？」\n" +
+                "• 「还车流程是什么？」\n" +
+                "• 「保险怎么买？」";
     }
 
     /**
