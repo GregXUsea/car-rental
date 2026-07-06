@@ -223,6 +223,48 @@ public class AdminController {
     }
 
     /**
+     * 订单评价汇总
+     */
+    @GetMapping("/reviews")
+    public Result<Map<String, Object>> getReviews(HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+
+        Map<String, Object> result = new HashMap<>();
+
+        // 获取所有已评价的订单
+        List<Order> reviewedOrders = orderMapper.selectList(
+                new LambdaQueryWrapper<Order>()
+                        .eq(Order::getStatus, 2)
+                        .isNotNull(Order::getUserRating)
+                        .orderByDesc(Order::getCreateTime)
+        );
+        fillOrderDetails(reviewedOrders);
+
+        // 统计评分分布
+        long star5 = reviewedOrders.stream().filter(o -> o.getUserRating() != null && o.getUserRating() == 5).count();
+        long star4 = reviewedOrders.stream().filter(o -> o.getUserRating() != null && o.getUserRating() == 4).count();
+        long star3 = reviewedOrders.stream().filter(o -> o.getUserRating() != null && o.getUserRating() == 3).count();
+        long star2 = reviewedOrders.stream().filter(o -> o.getUserRating() != null && o.getUserRating() == 2).count();
+        long star1 = reviewedOrders.stream().filter(o -> o.getUserRating() != null && o.getUserRating() == 1).count();
+
+        double avgRating = reviewedOrders.stream()
+                .mapToInt(o -> o.getUserRating() != null ? o.getUserRating() : 0)
+                .average()
+                .orElse(0);
+
+        result.put("totalReviews", reviewedOrders.size());
+        result.put("avgRating", Math.round(avgRating * 10) / 10.0);
+        result.put("star5", star5);
+        result.put("star4", star4);
+        result.put("star3", star3);
+        result.put("star2", star2);
+        result.put("star1", star1);
+        result.put("reviews", reviewedOrders);
+
+        return Result.success(result);
+    }
+
+    /**
      * 优惠券统计
      */
     @GetMapping("/coupons")

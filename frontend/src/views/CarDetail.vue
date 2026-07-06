@@ -168,15 +168,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="还车门店">
-          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店" style="width: 100%;">
+          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店（默认同取车门店）" clearable style="width: 100%;">
             <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
               <span>{{ s.name }}</span>
               <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
             </el-option>
           </el-select>
-          <div v-if="rentForm.pickupStoreId && rentForm.returnStoreId && pickupStores.find(s => s.id === rentForm.pickupStoreId)?.city !== returnStores.find(s => s.id === rentForm.returnStoreId)?.city" class="city-transfer-hint">
-            ⚠️ 异城还车将产生调度费 ¥200
-          </div>
         </el-form-item>
         <el-form-item label="选择司机">
           <el-select v-model="rentForm.driverId" placeholder="不选择司机" clearable style="width: 100%;">
@@ -278,15 +275,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="还车门店">
-          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店" style="width: 100%;">
+          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店（默认同取车门店）" clearable style="width: 100%;">
             <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
               <span>{{ s.name }}</span>
               <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
             </el-option>
           </el-select>
-          <div v-if="rentForm.pickupStoreId && rentForm.returnStoreId && pickupStores.find(s => s.id === rentForm.pickupStoreId)?.city !== returnStores.find(s => s.id === rentForm.returnStoreId)?.city" class="city-transfer-hint">
-            ⚠️ 异城还车将产生调度费 ¥200
-          </div>
         </el-form-item>
         <el-form-item label="选择司机">
           <el-select v-model="rentForm.driverId" placeholder="不选择司机" clearable style="width: 100%;">

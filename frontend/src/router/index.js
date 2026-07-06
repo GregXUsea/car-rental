@@ -101,6 +101,12 @@ const routes = [
     name: 'AdminMaintenance',
     component: () => import('../views/MaintenanceDashboard.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/reviews',
+    name: 'AdminReviews',
+    component: () => import('../views/AdminReviews.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
