@@ -2,7 +2,10 @@ package com.carrental.controller;
 
 import com.carrental.dto.Result;
 import com.carrental.entity.Message;
+import com.carrental.entity.User;
+import com.carrental.mapper.UserMapper;
 import com.carrental.service.MessageService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +22,21 @@ public class MessageController {
 
     @Autowired
     private MessageService messageService;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    /**
+     * 获取管理员ID（供用户发消息用）
+     */
+    @GetMapping("/admin-id")
+    public Result<Long> getAdminId() {
+        User admin = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getRole, 1).last("LIMIT 1")
+        );
+        if (admin == null) return Result.error("未找到管理员");
+        return Result.success(admin.getId());
+    }
 
     /**
      * 发送消息

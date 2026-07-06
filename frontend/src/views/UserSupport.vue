@@ -105,18 +105,12 @@ const loadMessages = async () => {
 const sendMessage = async () => {
   if (!inputMessage.value.trim()) return
 
-  // 从对话列表获取管理员ID
-  const convRes = await api.get('/messages/conversations')
-  let adminId = null
-  if (convRes.code === 200) {
-    const adminConv = convRes.data.find(c => c.userRole === 1)
-    if (adminConv) adminId = adminConv.userId
-  }
-
-  if (!adminId) {
-    // 如果没有对话记录，需要后端提供获取管理员ID的接口
+  // 获取管理员ID
+  const adminRes = await api.get('/messages/admin-id')
+  if (adminRes.code !== 200) {
     return
   }
+  const adminId = adminRes.data
 
   const res = await api.post('/messages/send', {
     receiverId: adminId,
