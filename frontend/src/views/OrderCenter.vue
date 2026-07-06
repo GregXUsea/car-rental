@@ -277,15 +277,15 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/></svg>
             <span>微信支付</span>
           </div>
-          <div class="wechat-amount">¥{{ payAmount }}</div>
+          <div class="wechat-qrcode">
+            <canvas ref="qrcodeCanvas"></canvas>
+          </div>
+          <p class="wechat-tip">请使用微信扫描二维码</p>
+          <p class="wechat-amount">¥{{ payAmount }}</p>
           <div class="pay-code-display">
             <span class="code-label">支付验证码：</span>
             <span class="code-value">{{ payCode }}</span>
           </div>
-          <p class="pay-confirm-tip">请在手机微信中输入此验证码完成支付</p>
-          <button class="confirm-pay-btn" @click="payConfirmed = true">
-            {{ payConfirmed ? '✓ 已确认' : '确认已支付' }}
-          </button>
         </div>
       </div>
       <div v-if="payStep === 'processing'" class="pay-processing">

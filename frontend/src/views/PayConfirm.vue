@@ -53,10 +53,8 @@ const codeError = ref('')
 const loading = ref(false)
 const paySuccess = ref(false)
 
-// 获取API基础URL
-const API_BASE = window.location.hostname === 'localhost'
-  ? 'http://localhost:8080'
-  : `http://${window.location.hostname}:8080`
+// 获取API基础URL - 手机端需要访问电脑的后端
+const API_BASE = `http://${window.location.hostname}:8080`
 
 onMounted(() => {
   code.value = route.query.code || ''
