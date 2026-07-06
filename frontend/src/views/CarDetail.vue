@@ -356,21 +356,21 @@
             <input v-model="cardNum4" maxlength="4" placeholder="0001" class="card-input" />
           </div>
         </div>
-        <!-- 微信支付二维码 -->
+        <!-- 微信支付 -->
         <div v-if="payMethod === 'wechat'" class="wechat-pay-area">
           <div class="wechat-header">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/></svg>
             <span>微信支付</span>
           </div>
-          <div class="wechat-qrcode">
-            <canvas ref="qrcodeCanvas"></canvas>
-          </div>
-          <p class="wechat-tip">请使用微信扫描二维码</p>
-          <p class="wechat-amount">¥{{ payAmount }}</p>
+          <div class="wechat-amount">¥{{ payAmount }}</div>
           <div class="pay-code-display">
             <span class="code-label">支付验证码：</span>
             <span class="code-value">{{ payCode }}</span>
           </div>
+          <p class="pay-confirm-tip">请在手机微信中输入此验证码完成支付</p>
+          <button class="confirm-pay-btn" @click="payConfirmed = true">
+            {{ payConfirmed ? '✓ 已确认' : '确认已支付' }}
+          </button>
         </div>
       </div>
       <!-- 步骤2：支付中 -->
@@ -461,7 +461,7 @@ const generatePayCode = () => {
 const getLocalIP = () => {
   const hostname = window.location.hostname
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return '192.168.184.1'
+    return '172.20.10.6' // 手机热点IP
   }
   return hostname
 }
@@ -1271,6 +1271,8 @@ const handleImgError = (e) => {
 .pay-code-display { margin-top: 12px; padding: 10px; background: #fff; border-radius: 8px; border: 1px dashed #07C160; }
 .code-label { font-size: 13px; color: #666; }
 .code-value { font-size: 24px; font-weight: 700; color: #07C160; letter-spacing: 4px; margin-left: 8px; }
+.confirm-pay-btn { margin-top: 12px; padding: 10px 24px; background: #07C160; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+.confirm-pay-btn:hover { background: #06ad56; }
 .card-input:focus { border-color: #667eea; }
 .card-dash { color: #999; font-weight: 600; }
 
