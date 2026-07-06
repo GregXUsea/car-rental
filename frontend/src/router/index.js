@@ -59,6 +59,12 @@ const routes = [
     component: () => import('../views/CouponPage.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/support',
+    name: 'UserSupport',
+    component: () => import('../views/UserSupport.vue'),
+    meta: { requiresAuth: true }
+  },
   // 管理员路由
   {
     path: '/admin',

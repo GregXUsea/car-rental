@@ -110,6 +110,7 @@ public class MessageService {
             Map<String, Object> conversation = new HashMap<>();
             conversation.put("userId", otherUserId);
             conversation.put("userName", otherUser.getNickname() != null ? otherUser.getNickname() : otherUser.getUsername());
+            conversation.put("userAvatar", otherUser.getAvatar());
             conversation.put("userRole", otherUser.getRole());
             conversation.put("latestMessage", latestMsg.getContent());
             conversation.put("latestTime", latestMsg.getCreateTime());

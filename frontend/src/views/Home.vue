@@ -48,6 +48,11 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             管理后台
           </a>
+          <a v-if="!isAdmin" class="nav-link" @click.prevent="$router.push('/support')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            客服中心
+            <span class="msg-badge" v-if="userUnreadCount > 0">{{ userUnreadCount }}</span>
+          </a>
           <el-dropdown @command="handleCommand">
             <span class="user-btn">
               <img v-if="userInfo.avatar" :src="userInfo.avatar" class="user-avatar-img" />
@@ -230,6 +235,7 @@ const showSuggestions = ref(false)
 const searchBoxRef = ref(null)
 let sugHideTimer = null
 const pendingOrders = ref([]) // 待处理订单
+const userUnreadCount = ref(0) // 用户未读消息数
 
 // 品牌列表（用于搜索建议）
 const allBrands = computed(() => {
@@ -324,6 +330,8 @@ onMounted(async () => {
     localStorage.setItem('userAvatar', userRes.data.avatar || '')
     // 获取待处理订单
     loadPendingOrders()
+    // 获取未读消息数
+    loadUserUnreadCount()
   }
 
   // 立即检查并显示欢迎弹窗（所有用户都显示）
@@ -393,6 +401,18 @@ const loadPendingOrders = async () => {
     if (res.code === 200) {
       // 筛选待处理订单：待支付、在租中、预约中
       pendingOrders.value = res.data.filter(o => o.status === 0 || o.status === 1 || o.status === 4)
+    }
+  } catch (e) {
+    // 静默处理
+  }
+}
+
+// 加载用户未读消息数
+const loadUserUnreadCount = async () => {
+  try {
+    const res = await api.get('/messages/unread')
+    if (res.code === 200) {
+      userUnreadCount.value = res.data
     }
   } catch (e) {
     // 静默处理
@@ -564,8 +584,9 @@ const handleCommand = async (cmd) => {
 .logo-name { font-size: 18px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; }
 .logo-sub { font-size: 9px; color: #999; letter-spacing: 1px; }
 .nav-right { display: flex; align-items: center; gap: 8px; }
-.nav-link { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; color: #666; text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+.nav-link { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; color: #666; text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.2s; position: relative; }
 .nav-link:hover { background: #f5f7fa; color: #333; }
+.msg-badge { position: absolute; top: 2px; right: 2px; background: #f56c6c; color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 10px; }
 .ai-nav { flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 4px 10px; position: relative; }
 .ai-nav .ai-rabbit-wrap { line-height: 0; display: flex; align-items: center; justify-content: center; }
 .ai-nav:hover .ai-rabbit-wrap { transform: scale(1.1) translateY(-2px); filter: drop-shadow(0 2px 8px rgba(102,126,234,0.4)); transition: all 0.3s; }

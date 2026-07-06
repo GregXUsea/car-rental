@@ -131,6 +131,7 @@ public class AdminController {
             userMap.put("nickname", user.getNickname());
             userMap.put("phone", user.getPhone());
             userMap.put("email", user.getEmail());
+            userMap.put("avatar", user.getAvatar());
             userMap.put("createTime", user.getCreateTime());
 
             // 统计用户订单数
@@ -138,9 +139,6 @@ public class AdminController {
                     new LambdaQueryWrapper<Order>().eq(Order::getUserId, user.getId())
             );
             userMap.put("orderCount", orderCount);
-
-            // 统计用户优惠券（通过SQL查询）
-            userMap.put("couponCount", 0);
 
             result.add(userMap);
         }

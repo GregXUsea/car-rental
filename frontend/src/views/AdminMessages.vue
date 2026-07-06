@@ -10,10 +10,19 @@
           <router-link to="/admin" class="nav-item">仪表盘</router-link>
           <router-link to="/admin/orders" class="nav-item">订单管理</router-link>
           <router-link to="/admin/users" class="nav-item">用户管理</router-link>
-          <router-link to="/admin/messages" class="nav-item active">消息中心</router-link>
-          <router-link to="/admin/coupons" class="nav-item">优惠券</router-link>
-          <router-link to="/admin/maintenance" class="nav-item">维护看板</router-link>
-          <router-link to="/ai-assistant" class="nav-item">AI助手</router-link>
+          <router-link to="/admin/messages" class="nav-item active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            消息中心
+            <span class="unread-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
+          </router-link>
+          <router-link to="/admin/maintenance" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+            维护看板
+          </router-link>
+          <router-link to="/ai-assistant" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            AI助手
+          </router-link>
         </nav>
         <div class="header-right">
           <span class="admin-badge">管理员</span>
@@ -32,7 +41,8 @@
           <div v-for="conv in conversations" :key="conv.userId"
                :class="['conv-item', { active: currentUserId === conv.userId }]"
                @click="openConversation(conv.userId)">
-            <div class="conv-avatar">{{ conv.userName.charAt(0) }}</div>
+            <img v-if="conv.userAvatar" :src="conv.userAvatar" class="conv-avatar-img" />
+            <div v-else class="conv-avatar">{{ conv.userName.charAt(0) }}</div>
             <div class="conv-info">
               <div class="conv-name">
                 {{ conv.userName }}
@@ -59,7 +69,8 @@
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="msg in messages" :key="msg.id"
                :class="['message', { mine: msg.senderId === currentAdminId }]">
-            <div class="msg-avatar">{{ msg.senderId === currentAdminId ? '管' : currentUserName.charAt(0) }}</div>
+            <div v-if="msg.senderId === currentAdminId" class="msg-avatar">管</div>
+            <div v-else class="msg-avatar">{{ currentUserName.charAt(0) }}</div>
             <div class="msg-content">
               <div class="msg-text">{{ msg.content }}</div>
               <div class="msg-time">{{ formatTime(msg.createTime) }}</div>
@@ -94,6 +105,14 @@ const currentUserName = ref('')
 const currentAdminId = ref(null)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
+const unreadCount = ref(0)
+
+const loadUnreadCount = async () => {
+  const res = await api.get('/messages/unread')
+  if (res.code === 200) {
+    unreadCount.value = res.data
+  }
+}
 
 const formatTime = (t) => {
   if (!t) return ''
@@ -126,6 +145,8 @@ const openConversation = async (userId) => {
 
   // 刷新对话列表以更新未读状态
   loadConversations()
+  // 刷新全局未读数
+  loadUnreadCount()
 }
 
 const scrollToBottom = () => {
@@ -159,6 +180,7 @@ onMounted(async () => {
   }
 
   loadConversations()
+  loadUnreadCount()
 
   // 如果URL带userId参数，直接打开对话
   if (route.query.userId) {
@@ -197,6 +219,7 @@ watch(() => route.query.userId, (newUserId) => {
 .conv-item:hover { background: #f9f9f9; }
 .conv-item.active { background: #f0f2ff; }
 .conv-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.conv-avatar-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .conv-info { flex: 1; min-width: 0; }
 .conv-name { font-size: 14px; font-weight: 500; color: #333; display: flex; align-items: center; gap: 6px; }
 .role-tag { font-size: 10px; background: #e6e6ff; color: #667eea; padding: 1px 6px; border-radius: 4px; }
@@ -213,6 +236,7 @@ watch(() => route.query.userId, (newUserId) => {
 .message { display: flex; gap: 10px; max-width: 70%; }
 .message.mine { margin-left: auto; flex-direction: row-reverse; }
 .msg-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e0e0e0; color: #666; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.msg-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .message.mine .msg-avatar { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
 .msg-content { background: #fff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
 .message.mine .msg-content { background: #667eea; color: #fff; }

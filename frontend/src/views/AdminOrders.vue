@@ -10,10 +10,18 @@
           <router-link to="/admin" class="nav-item">仪表盘</router-link>
           <router-link to="/admin/orders" class="nav-item active">订单管理</router-link>
           <router-link to="/admin/users" class="nav-item">用户管理</router-link>
-          <router-link to="/admin/messages" class="nav-item">消息中心</router-link>
-          <router-link to="/admin/coupons" class="nav-item">优惠券</router-link>
-          <router-link to="/admin/maintenance" class="nav-item">维护看板</router-link>
-          <router-link to="/ai-assistant" class="nav-item">AI助手</router-link>
+          <router-link to="/admin/messages" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            消息中心
+          </router-link>
+          <router-link to="/admin/maintenance" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+            维护看板
+          </router-link>
+          <router-link to="/ai-assistant" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            AI助手
+          </router-link>
         </nav>
         <div class="header-right">
           <span class="admin-badge">管理员</span>
