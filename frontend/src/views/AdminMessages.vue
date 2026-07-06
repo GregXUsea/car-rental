@@ -134,6 +134,18 @@
         </div>
 
         <div class="chat-input">
+          <!-- 表情面板 -->
+          <div class="emoji-picker" v-if="showEmoji" @click.self="showEmoji = false">
+            <div class="emoji-panel">
+              <div class="emoji-category" v-for="(emojis, category) in emojiGroups" :key="category">
+                <div class="category-title">{{ category }}</div>
+                <div class="emoji-list">
+                  <span v-for="emoji in emojis" :key="emoji" class="emoji-item" @click="insertEmoji(emoji)">{{ emoji }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="emoji-btn" @click="showEmoji = !showEmoji">😊</button>
           <input v-model="inputMessage" placeholder="输入消息..."
                  @keyup.enter="sendMessage"
                  @input="onTyping" />
@@ -195,6 +207,21 @@ const loadConversations = async () => {
 const allUsers = ref([])
 const showNewChat = ref(false)
 const searchUser = ref('')
+const showEmoji = ref(false)
+
+// 表情包分组
+const emojiGroups = {
+  '常用': ['😊', '😂', '😍', '🥰', '😘', '😎', '🤩', '👍', '👏', '🙏', '❤️', '💕', '🎉', '🎊', '✨', '🔥'],
+  '汽车': ['🚗', '🚕', '🚙', '🏎️', '🚓', '🚐', '🛻', '🚚', '🛺', '🚲', '⛽', '🔧', '🛠️', '🏢', '🏠', '🛣️'],
+  '表情': ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😉', '😊', '😇', '🙂', '🙃', '😌', '😍', '🥰', '😘'],
+  '手势': ['👍', '👎', '👌', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚'],
+  '物品': ['💰', '💳', '📱', '🔑', '📋', '📝', '📌', '🏷️', '🎁', '🎈', '🎯', '🏆', '⭐', '💫', '🌈', '☀️']
+}
+
+const insertEmoji = (emoji) => {
+  inputMessage.value += emoji
+  showEmoji.value = false
+}
 
 const loadAllUsers = async () => {
   console.log('加载用户列表...')
@@ -434,12 +461,22 @@ watch(() => route.query.userId, (newUserId) => {
   30% { transform: translateY(-4px); opacity: 1; }
 }
 
-.chat-input { display: flex; gap: 12px; padding: 16px 20px; background: #fff; border-top: 1px solid #eee; }
+.chat-input { display: flex; gap: 12px; padding: 16px 20px; background: #fff; border-top: 1px solid #eee; position: relative; align-items: center; }
 .chat-input input { flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
 .chat-input input:focus { border-color: #667eea; }
 .chat-input button { padding: 10px 24px; background: #667eea; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .chat-input button:hover { background: #5a6fd6; }
 .chat-input button:disabled { background: #ccc; cursor: not-allowed; }
+.emoji-btn { width: 40px; height: 40px; padding: 0 !important; font-size: 20px; background: transparent !important; border: 1px solid #ddd !important; border-radius: 8px !important; }
+.emoji-btn:hover { background: #f5f5f5 !important; }
+
+/* 表情面板 */
+.emoji-picker { position: fixed; bottom: 80px; left: 380px; z-index: 100; }
+.emoji-panel { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 16px; width: 350px; max-height: 300px; overflow-y: auto; }
+.category-title { font-size: 12px; color: #999; margin-bottom: 8px; font-weight: 500; }
+.emoji-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.emoji-item { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; border-radius: 6px; transition: background 0.15s; }
+.emoji-item:hover { background: #f0f2ff; }
 .chat-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; }
 .chat-placeholder p { margin-top: 16px; }
 
