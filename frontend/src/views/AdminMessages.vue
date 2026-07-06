@@ -92,6 +92,7 @@
       <div class="chat-area" v-if="currentUserId">
         <div class="chat-header">
           <span class="chat-name">{{ currentUserName }}</span>
+          <span v-if="userTyping" class="typing-hint">正在输入...</span>
         </div>
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="msg in messages" :key="msg.id"
@@ -100,12 +101,26 @@
             <div v-else class="msg-avatar">{{ currentUserName.charAt(0) }}</div>
             <div class="msg-content">
               <div class="msg-text">{{ msg.content }}</div>
-              <div class="msg-time">{{ formatTime(msg.createTime) }}</div>
+              <div class="msg-meta">
+                <span class="msg-time">{{ formatTime(msg.createTime) }}</span>
+                <span v-if="msg.senderId === currentAdminId" class="read-status">
+                  {{ msg.isRead ? '已读' : '未读' }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <!-- 用户正在输入提示 -->
+          <div v-if="userTyping" class="typing-indicator">
+            <div class="typing-avatar">{{ currentUserName.charAt(0) }}</div>
+            <div class="typing-bubble">
+              <span></span><span></span><span></span>
             </div>
           </div>
         </div>
         <div class="chat-input">
-          <input v-model="inputMessage" placeholder="输入消息..." @keyup.enter="sendMessage" />
+          <input v-model="inputMessage" placeholder="输入消息..."
+                 @keyup.enter="sendMessage"
+                 @input="onTyping" />
           <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
         </div>
       </div>
@@ -133,6 +148,7 @@ const currentAdminId = ref(null)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
 const unreadCount = ref(0)
+const userTyping = ref(false)
 
 const loadUnreadCount = async () => {
   const res = await api.get('/messages/unread')
@@ -219,8 +235,15 @@ const sendMessage = async () => {
 
   if (res.code === 200) {
     inputMessage.value = ''
+    userTyping.value = false
     openConversation(currentUserId.value)
   }
+}
+
+// 管理员输入时发送状态
+const onTyping = async () => {
+  if (!currentUserId.value || !inputMessage.value.trim()) return
+  api.post('/messages/typing', { receiverId: currentUserId.value }).catch(() => {})
 }
 
 onMounted(async () => {
@@ -241,11 +264,18 @@ onMounted(async () => {
     openConversation(Number(route.query.userId))
   }
 
-  // 每10秒刷新对话列表和未读数
-  setInterval(() => {
-    loadConversations()
+  // 每3秒刷新对话、未读数、用户输入状态
+  setInterval(async () => {
+    await loadConversations()
     loadUnreadCount()
-  }, 10000)
+    // 检查当前对话的用户是否在输入
+    if (currentUserId.value) {
+      const res = await api.get(`/messages/typing-status/${currentUserId.value}`)
+      if (res.code === 200) {
+        userTyping.value = res.data
+      }
+    }
+  }, 3000)
 })
 
 watch(() => route.query.userId, (newUserId) => {
@@ -307,8 +337,10 @@ watch(() => route.query.userId, (newUserId) => {
 .empty-list { text-align: center; color: #999; padding: 40px; }
 
 .chat-area { flex: 1; display: flex; flex-direction: column; background: #f9f9f9; }
-.chat-header { padding: 16px 20px; background: #fff; border-bottom: 1px solid #eee; }
+.chat-header { padding: 16px 20px; background: #fff; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px; }
 .chat-name { font-size: 16px; font-weight: 500; color: #333; }
+.typing-hint { font-size: 12px; color: #67c23a; animation: blink 1s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .message { display: flex; gap: 10px; max-width: 70%; }
 .message.mine { margin-left: auto; flex-direction: row-reverse; }
@@ -320,6 +352,22 @@ watch(() => route.query.userId, (newUserId) => {
 .msg-text { font-size: 14px; line-height: 1.5; }
 .msg-time { font-size: 11px; color: #ccc; margin-top: 4px; }
 .message.mine .msg-time { color: rgba(255,255,255,0.7); }
+.msg-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.read-status { font-size: 11px; color: #ccc; }
+.message.mine .read-status { color: rgba(255,255,255,0.6); }
+
+/* 正在输入动画 */
+.typing-indicator { display: flex; align-items: center; gap: 8px; }
+.typing-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.typing-bubble { background: #f5f5f5; padding: 12px 16px; border-radius: 12px; display: flex; gap: 4px; }
+.typing-bubble span { width: 6px; height: 6px; background: #999; border-radius: 50%; animation: typing 1.4s infinite; }
+.typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+.typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
 .chat-input { display: flex; gap: 12px; padding: 16px 20px; background: #fff; border-top: 1px solid #eee; }
 .chat-input input { flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
 .chat-input input:focus { border-color: #667eea; }

@@ -17,7 +17,9 @@
           <div class="admin-avatar">管</div>
           <div class="admin-detail">
             <span class="admin-name">御途客服</span>
-            <span class="admin-status">在线</span>
+            <span class="admin-status" :class="{ online: adminOnline }">
+              {{ adminOnline ? '在线' : '离线' }}
+            </span>
           </div>
         </div>
       </div>
@@ -33,13 +35,27 @@
           <div v-else class="msg-avatar user">我</div>
           <div class="msg-content">
             <div class="msg-text">{{ msg.content }}</div>
-            <div class="msg-time">{{ formatTime(msg.createTime) }}</div>
+            <div class="msg-meta">
+              <span class="msg-time">{{ formatTime(msg.createTime) }}</span>
+              <span v-if="msg.senderId === currentUserId" class="read-status">
+                {{ msg.isRead ? '已读' : '未读' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <!-- 对方正在输入提示 -->
+        <div v-if="adminTyping" class="typing-indicator">
+          <div class="typing-avatar">管</div>
+          <div class="typing-bubble">
+            <span></span><span></span><span></span>
           </div>
         </div>
       </div>
 
       <div class="chat-input">
-        <input v-model="inputMessage" placeholder="输入消息..." @keyup.enter="sendMessage" />
+        <input v-model="inputMessage" placeholder="输入消息..."
+               @keyup.enter="sendMessage"
+               @input="onTyping" />
         <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
       </div>
     </main>
@@ -47,15 +63,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
 
 const router = useRouter()
 const messages = ref([])
 const currentUserId = ref(null)
+const adminId = ref(null)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
+const adminOnline = ref(true)
+const adminTyping = ref(false)
+let typingTimer = null
+let pollTimer = null
 
 const formatTime = (t) => {
   if (!t) return ''
@@ -73,54 +94,51 @@ const scrollToBottom = () => {
   }
 }
 
-// 获取管理员ID（假设管理员角色为1）
-const getAdminId = async () => {
-  try {
-    const res = await api.get('/admin/users')
-    if (res.code === 200 && res.data.length > 0) {
-      return null // 需要后端提供获取管理员ID的接口
-    }
-  } catch (e) {
-    return null
-  }
-  return null
-}
-
 const loadMessages = async () => {
-  // 这里需要知道管理员的ID，暂时使用固定值或从对话列表获取
-  const convRes = await api.get('/messages/conversations')
-  if (convRes.code === 200 && convRes.data.length > 0) {
-    const adminConv = convRes.data.find(c => c.userRole === 1)
-    if (adminConv) {
-      const res = await api.get(`/messages/conversation/${adminConv.userId}`)
-      if (res.code === 200) {
-        messages.value = res.data
-        await nextTick()
-        scrollToBottom()
-      }
-    }
+  if (!adminId.value) return
+  const res = await api.get(`/messages/conversation/${adminId.value}`)
+  if (res.code === 200) {
+    messages.value = res.data
+    await nextTick()
+    scrollToBottom()
   }
 }
 
 const sendMessage = async () => {
-  if (!inputMessage.value.trim()) return
-
-  // 获取管理员ID
-  const adminRes = await api.get('/messages/admin-id')
-  if (adminRes.code !== 200) {
-    return
-  }
-  const adminId = adminRes.data
+  if (!inputMessage.value.trim() || !adminId.value) return
 
   const res = await api.post('/messages/send', {
-    receiverId: adminId,
+    receiverId: adminId.value,
     content: inputMessage.value.trim()
   })
 
   if (res.code === 200) {
     inputMessage.value = ''
+    adminTyping.value = false
     loadMessages()
   }
+}
+
+// 用户输入时发送"正在输入"状态
+const onTyping = async () => {
+  if (!adminId.value || !inputMessage.value.trim()) return
+
+  // 发送输入状态
+  api.post('/messages/typing', { receiverId: adminId.value }).catch(() => {})
+}
+
+// 轮询：刷新消息 + 检查管理员输入状态
+const startPolling = () => {
+  pollTimer = setInterval(async () => {
+    await loadMessages()
+    // 检查管理员是否在输入
+    if (adminId.value) {
+      const res = await api.get(`/messages/typing-status/${adminId.value}`)
+      if (res.code === 200) {
+        adminTyping.value = res.data
+      }
+    }
+  }, 2000) // 每2秒轮询
 }
 
 onMounted(async () => {
@@ -128,7 +146,20 @@ onMounted(async () => {
   if (userRes.code === 200) {
     currentUserId.value = userRes.data.id
   }
-  loadMessages()
+
+  // 获取管理员ID
+  const adminRes = await api.get('/messages/admin-id')
+  if (adminRes.code === 200) {
+    adminId.value = adminRes.data
+  }
+
+  await loadMessages()
+  startPolling()
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  if (typingTimer) clearTimeout(typingTimer)
 })
 </script>
 
@@ -159,6 +190,22 @@ onMounted(async () => {
 .msg-text { font-size: 14px; line-height: 1.5; }
 .msg-time { font-size: 11px; color: #ccc; margin-top: 4px; }
 .message.mine .msg-time { color: rgba(255,255,255,0.7); }
+.msg-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.read-status { font-size: 11px; }
+.read-status { color: #ccc; }
+.message.mine .read-status { color: rgba(255,255,255,0.6); }
+
+/* 正在输入动画 */
+.typing-indicator { display: flex; align-items: center; gap: 8px; }
+.typing-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.typing-bubble { background: #f5f5f5; padding: 12px 16px; border-radius: 12px; display: flex; gap: 4px; }
+.typing-bubble span { width: 6px; height: 6px; background: #999; border-radius: 50%; animation: typing 1.4s infinite; }
+.typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+.typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
 
 .chat-input { display: flex; gap: 12px; padding: 16px 20px; border-top: 1px solid #eee; }
 .chat-input input { flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }

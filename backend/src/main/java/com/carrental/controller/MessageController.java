@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 消息控制器 - 管理员与用户沟通
@@ -96,5 +97,38 @@ public class MessageController {
     public Result<Void> markAsRead(@PathVariable Long id) {
         messageService.markAsRead(id);
         return Result.success(null);
+    }
+
+    // 输入状态存储（临时存储，生产环境应使用Redis）
+    private static final ConcurrentHashMap<Long, Long> typingUsers = new ConcurrentHashMap<>();
+
+    /**
+     * 发送"正在输入"状态
+     */
+    @PostMapping("/typing")
+    public Result<Void> sendTyping(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        Long receiverId = Long.valueOf(body.get("receiverId").toString());
+        // 记录输入状态，3秒后自动过期
+        typingUsers.put(userId, System.currentTimeMillis());
+        // 3秒后自动清除
+        new Thread(() -> {
+            try { Thread.sleep(3000); } catch (InterruptedException e) {}
+            Long lastTime = typingUsers.get(userId);
+            if (lastTime != null && System.currentTimeMillis() - lastTime >= 2900) {
+                typingUsers.remove(userId);
+            }
+        }).start();
+        return Result.success(null);
+    }
+
+    /**
+     * 查询对方是否正在输入
+     */
+    @GetMapping("/typing-status/{targetUserId}")
+    public Result<Boolean> getTypingStatus(@PathVariable Long targetUserId) {
+        Long lastTime = typingUsers.get(targetUserId);
+        boolean isTyping = lastTime != null && (System.currentTimeMillis() - lastTime) < 3000;
+        return Result.success(isTyping);
     }
 }
