@@ -314,7 +314,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import IconSvg from '../components/IconSvg.vue'
@@ -339,6 +339,24 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
+})
+
+// 监听支付弹窗显示，生成二维码
+watch(showPayDialog, (val) => {
+  if (val && payMethod.value === 'wechat') {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 200)
+    })
+  }
+})
+
+// 监听支付方式变化，重新生成二维码
+watch(payMethod, (val) => {
+  if (val === 'wechat' && showPayDialog.value) {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 200)
+    })
+  }
 })
 
 const loadOrders = async () => {
