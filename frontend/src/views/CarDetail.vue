@@ -159,22 +159,6 @@
             {{ timeWarning.end }}
           </div>
         </el-form-item>
-        <el-form-item label="取车门店">
-          <el-select v-model="rentForm.pickupStoreId" placeholder="请选择取车门店" style="width: 100%;">
-            <el-option v-for="s in pickupStores" :key="s.id" :value="s.id">
-              <span>{{ s.name }}</span>
-              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="还车门店">
-          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店（默认同取车门店）" clearable style="width: 100%;">
-            <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
-              <span>{{ s.name }}</span>
-              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
-            </el-option>
-          </el-select>
-        </el-form-item>
         <el-form-item label="选择司机">
           <el-select v-model="rentForm.driverId" placeholder="不选择司机" clearable style="width: 100%;">
             <el-option v-for="d in availableDrivers" :key="d.id" :value="d.id">
@@ -265,22 +249,6 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             {{ timeWarning.end }}
           </div>
-        </el-form-item>
-        <el-form-item label="取车门店">
-          <el-select v-model="rentForm.pickupStoreId" placeholder="请选择取车门店" style="width: 100%;">
-            <el-option v-for="s in pickupStores" :key="s.id" :value="s.id">
-              <span>{{ s.name }}</span>
-              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="还车门店">
-          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店（默认同取车门店）" clearable style="width: 100%;">
-            <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
-              <span>{{ s.name }}</span>
-              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
-            </el-option>
-          </el-select>
         </el-form-item>
         <el-form-item label="选择司机">
           <el-select v-model="rentForm.driverId" placeholder="不选择司机" clearable style="width: 100%;">
@@ -832,17 +800,15 @@ const validateReserveTime = () => {
 
 const openRentDialog = () => {
   if (!isLoggedIn.value) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '', pickupStoreId: null, returnStoreId: null }
+  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '' }
   loadOccupiedSlots()
-  loadStores()
   showRentDialog.value = true
 }
 
 const openReserveDialog = () => {
   if (!isLoggedIn.value) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '', pickupStoreId: null, returnStoreId: null }
+  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '' }
   loadOccupiedSlots()
-  loadStores()
   showReserveDialog.value = true
 }
 
