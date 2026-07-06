@@ -381,8 +381,12 @@ const handleLogin = async () => {
       localStorage.setItem('welcomeName', nickname)
       localStorage.setItem('welcomeIsNew', isNewUser ? '1' : '0')
 
-      // 立即跳转到首页
-      window.location.href = '/'
+      // 管理员跳转到管理后台，普通用户跳转到首页
+      if (userRes.code === 200 && userRes.data.role === 1) {
+        window.location.href = '/admin'
+      } else {
+        window.location.href = '/'
+      }
     } else {
       loginFailCount.value++
       ElMessage.error(res.message)

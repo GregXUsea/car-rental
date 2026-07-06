@@ -129,6 +129,20 @@ CREATE TABLE `verification_codes` (
 -- 注意：用户账号由应用启动时自动创建，无需在此手动插入
 -- 默认账号: admin/admin123(管理员), zhangsan/user123(普通用户), lisi/user123(普通用户)
 
+-- 消息表（管理员与用户沟通）
+DROP TABLE IF EXISTS `messages`;
+CREATE TABLE `messages` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `sender_id` BIGINT NOT NULL COMMENT '发送者ID',
+  `receiver_id` BIGINT NOT NULL COMMENT '接收者ID',
+  `content` TEXT NOT NULL COMMENT '消息内容',
+  `is_read` TINYINT DEFAULT 0 COMMENT '0未读 1已读',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_sender` (`sender_id`),
+  KEY `idx_receiver` (`receiver_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- 插入车辆数据（30辆，覆盖各品牌和用途）
 -- ============================================================

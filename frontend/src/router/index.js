@@ -58,6 +58,43 @@ const routes = [
     name: 'CouponPage',
     component: () => import('../views/CouponPage.vue'),
     meta: { requiresAuth: true }
+  },
+  // 管理员路由
+  {
+    path: '/admin',
+    name: 'AdminDashboard',
+    component: () => import('../views/AdminDashboard.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/orders',
+    name: 'AdminOrders',
+    component: () => import('../views/AdminOrders.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: () => import('../views/AdminUsers.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/messages',
+    name: 'AdminMessages',
+    component: () => import('../views/AdminMessages.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/coupons',
+    name: 'AdminCoupons',
+    component: () => import('../views/AdminCoupons.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/maintenance',
+    name: 'AdminMaintenance',
+    component: () => import('../views/MaintenanceDashboard.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
