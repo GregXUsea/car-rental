@@ -470,10 +470,22 @@ const payCode = ref('') // 支付验证码
 const payConfirmed = ref(false) // 用户是否在手机端确认
 const qrcodeCanvas = ref(null) // 二维码画布
 
+// 获取本机IP地址（用于手机访问）
+const getLocalIP = () => {
+  const hostname = window.location.hostname
+  // 如果是localhost，尝试获取局域网IP
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return '192.168.184.1' // 默认网关IP，手机可访问
+  }
+  return hostname
+}
+
 // 生成真实二维码
 const generateQRCode = async () => {
   if (!qrcodeCanvas.value || !payCode.value) return
-  const payUrl = `${window.location.origin}/pay?code=${payCode.value}&amount=${payAmount.value}`
+  const localIP = getLocalIP()
+  const payUrl = `http://${localIP}:5173/pay?code=${payCode.value}&amount=${payAmount.value}`
+  console.log('支付URL:', payUrl)
   try {
     await QRCode.toCanvas(qrcodeCanvas.value, payUrl, {
       width: 160,
@@ -513,7 +525,8 @@ const generatePayCode = () => {
 
 // 打开支付页面（新窗口）
 const openPayPage = () => {
-  const payUrl = `/pay?code=${payCode.value}&amount=${payAmount.value}`
+  const localIP = getLocalIP()
+  const payUrl = `http://${localIP}:5173/pay?code=${payCode.value}&amount=${payAmount.value}`
   window.open(payUrl, '_blank', 'width=400,height=600')
 }
 
