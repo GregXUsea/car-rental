@@ -482,10 +482,23 @@ const getLocalIP = () => {
 
 // 生成真实二维码
 const generateQRCode = async () => {
-  if (!qrcodeCanvas.value || !payCode.value) return
+  console.log('开始生成二维码...')
+  console.log('canvas元素:', qrcodeCanvas.value)
+  console.log('验证码:', payCode.value)
+
+  if (!qrcodeCanvas.value) {
+    console.error('canvas元素不存在')
+    return
+  }
+  if (!payCode.value) {
+    console.error('验证码为空')
+    return
+  }
+
   const localIP = getLocalIP()
   const payUrl = `http://${localIP}:5173/pay?code=${payCode.value}&amount=${payAmount.value}`
   console.log('支付URL:', payUrl)
+
   try {
     await QRCode.toCanvas(qrcodeCanvas.value, payUrl, {
       width: 160,
@@ -495,6 +508,7 @@ const generateQRCode = async () => {
         light: '#ffffff'
       }
     })
+    console.log('二维码生成成功!')
   } catch (err) {
     console.error('二维码生成失败:', err)
   }
