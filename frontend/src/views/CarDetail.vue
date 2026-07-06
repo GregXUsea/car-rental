@@ -13,19 +13,24 @@
 
     <main class="main" v-if="car">
       <div class="detail-wrapper" @touchstart="onTouchStart" @touchend="onTouchEnd">
-        <!-- 左箭头：上一辆 -->
-        <button v-if="prevCar" class="nav-arrow nav-left" @click="navigateToCar(prevCar.id)" title="上一辆">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-
         <div class="detail-card">
         <div class="img-section">
+          <!-- 左箭头：上一辆（放在图片左侧） -->
+          <button v-if="prevCar" class="nav-arrow img-nav-left" @click="navigateToCar(prevCar.id)" title="上一辆">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+
           <img :src="car.image" :alt="car.brand + car.model" class="car-img" :data-brand="car.brand" :data-category="car.category" @error="handleImgError($event)" />
           <div class="status-badge" :class="'status-' + car.status">{{ statusText(car.status) }}</div>
           <div class="usage-badges" v-if="car.usageType">
             <span v-if="car.usageType.includes('商务')" class="badge business">商务用车</span>
             <span v-if="car.usageType.includes('婚庆')" class="badge wedding">婚庆用车</span>
           </div>
+
+          <!-- 右箭头：下一辆（放在图片右侧） -->
+          <button v-if="nextCar" class="nav-arrow img-nav-right" @click="navigateToCar(nextCar.id)" title="下一辆">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
 
         <div class="info-section">
@@ -115,11 +120,6 @@
           </div>
         </div>
       </div>
-
-        <!-- 右箭头：下一辆 -->
-        <button v-if="nextCar" class="nav-arrow nav-right" @click="navigateToCar(nextCar.id)" title="下一辆">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
       </div>
     </main>
 
@@ -1009,10 +1009,12 @@ const handleImgError = (e) => {
 .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 10; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.92); border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); color: #333; }
 .nav-arrow:hover { background: #fff; box-shadow: 0 6px 24px rgba(0,0,0,0.18); transform: translateY(-50%) scale(1.08); color: #667eea; }
 .nav-arrow:active { transform: translateY(-50%) scale(0.95); }
-.nav-left { left: -60px; }
-.nav-right { right: -60px; }
 
-.img-section { height: 350px; position: relative; background: #f5f5f5; }
+/* 图片两侧的切换按钮 */
+.img-nav-left { left: 12px; }
+.img-nav-right { right: 12px; }
+
+.img-section { height: 350px; position: relative; background: #f5f5f5; overflow: hidden; }
 .car-img { width: 100%; height: 100%; object-fit: cover; }
 .status-badge { position: absolute; top: 16px; right: 16px; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #fff; backdrop-filter: blur(8px); }
 .status-0 { background: rgba(103,194,58,0.9); }
@@ -1131,8 +1133,8 @@ const handleImgError = (e) => {
   .main { padding: 0 12px; margin: 12px auto; }
   .nav-arrow { width: 36px; height: 36px; background: rgba(255,255,255,0.8); }
   .nav-arrow svg { width: 18px; height: 18px; }
-  .nav-left { left: 8px; }
-  .nav-right { right: 8px; }
+  .img-nav-left { left: 8px; }
+  .img-nav-right { right: 8px; }
   .detail-wrapper { touch-action: pan-y; }
 }
 </style>
