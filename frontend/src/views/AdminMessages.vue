@@ -147,10 +147,30 @@
             </div>
           </div>
           <button class="emoji-btn" @click="showEmoji = !showEmoji">😊</button>
+          <!-- AI生成推荐按钮 -->
+          <button class="ai-gen-btn" @click="generateAiReply" :disabled="aiGenerating">
+            <svg v-if="!aiGenerating" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            <span v-else class="ai-loading">生成中...</span>
+            <span v-if="!aiGenerating">AI推荐</span>
+          </button>
           <input v-model="inputMessage" placeholder="输入消息..."
                  @keyup.enter="sendMessage"
                  @input="onTyping" />
           <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
+        </div>
+
+        <!-- AI生成的推荐回复（可编辑确认） -->
+        <div class="ai-reply-panel" v-if="aiGeneratedReply">
+          <div class="ai-reply-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            AI生成推荐回复
+            <button class="close-ai-reply" @click="aiGeneratedReply = ''">×</button>
+          </div>
+          <textarea class="ai-reply-text" v-model="aiGeneratedReply" rows="3"></textarea>
+          <div class="ai-reply-actions">
+            <button class="btn-discard" @click="aiGeneratedReply = ''">放弃</button>
+            <button class="btn-use" @click="useAiReply">采用并发送</button>
+          </div>
         </div>
       </div>
 
@@ -294,6 +314,7 @@ const sendMessage = async () => {
   if (res.code === 200) {
     inputMessage.value = ''
     userTyping.value = false
+    aiGeneratedReply.value = ''
     openConversation(currentUserId.value)
   }
 }
@@ -302,6 +323,49 @@ const sendMessage = async () => {
 const onTyping = async () => {
   if (!currentUserId.value || !inputMessage.value.trim()) return
   api.post('/messages/typing', { receiverId: currentUserId.value }).catch(() => {})
+}
+
+// AI生成推荐回复
+const aiGenerating = ref(false)
+const aiGeneratedReply = ref('')
+
+const generateAiReply = async () => {
+  if (!currentUserId.value || messages.value.length === 0) return
+
+  aiGenerating.value = true
+  aiGeneratedReply.value = ''
+
+  try {
+    // 获取最后一条用户消息
+    const lastUserMsg = [...messages.value].reverse().find(m => m.senderId !== currentAdminId.value)
+    if (!lastUserMsg) {
+      aiGenerating.value = false
+      return
+    }
+
+    // 调用AI生成推荐回复
+    const res = await api.post('/ai/chat', {
+      message: `作为御途租车客服，请根据用户消息"${lastUserMsg.content}"生成一段专业的客服回复。要求：1.语气亲切友好 2.包含解决方案或建议 3.不超过80字 4.直接输出回复内容，不要加引号或标题`,
+      history: []
+    })
+
+    if (res.code === 200 && res.data && res.data.reply) {
+      aiGeneratedReply.value = res.data.reply
+    } else {
+      aiGeneratedReply.value = '您好，感谢您的咨询。请问有什么可以帮助您的？'
+    }
+  } catch (e) {
+    aiGeneratedReply.value = '您好，感谢您的咨询。请问有什么可以帮助您的？'
+  } finally {
+    aiGenerating.value = false
+  }
+}
+
+const useAiReply = async () => {
+  if (!aiGeneratedReply.value.trim()) return
+  inputMessage.value = aiGeneratedReply.value
+  aiGeneratedReply.value = ''
+  await sendMessage()
 }
 
 // 获取AI推荐回复
@@ -485,6 +549,22 @@ watch(() => route.query.userId, (newUserId) => {
 .chat-input button:disabled { background: #ccc; cursor: not-allowed; }
 .emoji-btn { width: 40px; height: 40px; padding: 0 !important; font-size: 20px; background: transparent !important; border: 1px solid #ddd !important; border-radius: 8px !important; }
 .emoji-btn:hover { background: #f5f5f5 !important; }
+.ai-gen-btn { display: flex; align-items: center; gap: 4px; padding: 8px 12px !important; background: linear-gradient(135deg, #667eea, #764ba2) !important; font-size: 12px !important; }
+.ai-gen-btn:hover { opacity: 0.9; }
+.ai-loading { animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* AI推荐回复面板 */
+.ai-reply-panel { margin: 12px 20px; padding: 12px; background: #f0f2ff; border: 1px solid #e0e0ff; border-radius: 10px; }
+.ai-reply-header { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #667eea; font-weight: 500; margin-bottom: 8px; }
+.close-ai-reply { margin-left: auto; background: none; border: none; font-size: 18px; color: #999; cursor: pointer; }
+.ai-reply-text { width: 100%; padding: 10px; border: 1px solid #e0e0ff; border-radius: 8px; font-size: 13px; resize: none; outline: none; }
+.ai-reply-text:focus { border-color: #667eea; }
+.ai-reply-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.btn-discard { padding: 6px 14px; background: #f5f5f5; color: #666; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.btn-discard:hover { background: #eee; }
+.btn-use { padding: 6px 14px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.btn-use:hover { background: #5a6fd6; }
 
 /* 表情面板 */
 .emoji-picker { position: fixed; bottom: 80px; left: 380px; z-index: 100; }
