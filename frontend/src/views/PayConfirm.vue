@@ -43,6 +43,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import axios from 'axios'
 
 const route = useRoute()
 const code = ref('')
@@ -52,12 +53,17 @@ const codeError = ref('')
 const loading = ref(false)
 const paySuccess = ref(false)
 
+// 获取API基础URL
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8080'
+  : `http://${window.location.hostname}:8080`
+
 onMounted(() => {
   code.value = route.query.code || ''
   amount.value = route.query.amount || '0'
 })
 
-const confirmPay = () => {
+const confirmPay = async () => {
   if (!inputCode.value) {
     codeError.value = '请输入验证码'
     return
@@ -67,13 +73,15 @@ const confirmPay = () => {
     return
   }
   loading.value = true
-  // 模拟支付处理
-  setTimeout(() => {
+  try {
+    // 调用后端API确认支付
+    await axios.post(`${API_BASE}/api/payment/confirm`, { code: code.value })
     paySuccess.value = true
     loading.value = false
-    // 通知父窗口支付成功
-    window.opener?.postMessage({ type: 'paySuccess', code: code.value }, '*')
-  }, 1500)
+  } catch (e) {
+    codeError.value = '确认失败，请重试'
+    loading.value = false
+  }
 }
 </script>
 

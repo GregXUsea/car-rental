@@ -530,12 +530,17 @@ const openPayPage = () => {
   window.open(payUrl, '_blank', 'width=400,height=600')
 }
 
-// 监听支付弹窗显示，生成二维码
+// 监听支付弹窗显示，生成二维码并开始轮询
+let payPollTimer = null
+
 watch(showPayDialog, (val) => {
   if (val && payMethod.value === 'wechat') {
     nextTick(() => {
       setTimeout(() => generateQRCode(), 300)
+      startPayPolling()
     })
+  } else if (!val) {
+    stopPayPolling()
   }
 })
 
@@ -544,9 +549,35 @@ watch(payMethod, (val) => {
   if (val === 'wechat' && showPayDialog.value) {
     nextTick(() => {
       setTimeout(() => generateQRCode(), 300)
+      startPayPolling()
     })
   }
 })
+
+// 轮询检查支付状态
+const startPayPolling = () => {
+  stopPayPolling()
+  payPollTimer = setInterval(async () => {
+    if (!payCode.value) return
+    try {
+      const res = await api.get(`/payment/status/${payCode.value}`)
+      if (res.code === 200 && res.data === true) {
+        payConfirmed.value = true
+        stopPayPolling()
+        ElMessage.success('手机端已确认支付！')
+      }
+    } catch (e) {
+      // 忽略错误，继续轮询
+    }
+  }, 1000) // 每秒检查一次
+}
+
+const stopPayPolling = () => {
+  if (payPollTimer) {
+    clearInterval(payPollTimer)
+    payPollTimer = null
+  }
+}
 
 const processPayment = async () => {
   if (payMethod.value === 'wechat' && !payConfirmed.value) {
