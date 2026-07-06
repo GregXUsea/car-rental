@@ -70,8 +70,9 @@
           <div v-for="conv in conversations" :key="conv.userId"
                :class="['conv-item', { active: currentUserId === conv.userId }]"
                @click="openConversation(conv.userId)">
-            <img v-if="conv.userAvatar" :src="conv.userAvatar" class="conv-avatar-img" @error="e => e.target.style.display='none'" />
-            <div v-if="!conv.userAvatar || conv.avatarError" class="conv-avatar">{{ conv.userName.charAt(0) }}</div>
+            <div class="conv-avatar" :style="conv.userAvatar ? { backgroundImage: 'url(' + conv.userAvatar + ')', backgroundSize: 'cover', color: 'transparent' } : {}">
+              {{ conv.userAvatar ? '' : conv.userName.charAt(0) }}
+            </div>
             <div class="conv-info">
               <div class="conv-name">
                 {{ conv.userName }}
@@ -99,8 +100,10 @@
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="msg in messages" :key="msg.id"
                :class="['message', { mine: msg.senderId === currentAdminId }]">
-            <div v-if="msg.senderId === currentAdminId" class="msg-avatar">管</div>
-            <div v-else class="msg-avatar">{{ currentUserName.charAt(0) }}</div>
+            <div v-if="msg.senderId === currentAdminId" class="msg-avatar admin-avatar">管</div>
+            <div v-else class="msg-avatar" :style="currentConversationUserAvatar ? { backgroundImage: 'url(' + currentConversationUserAvatar + ')', backgroundSize: 'cover', color: 'transparent' } : {}">
+              {{ currentConversationUserAvatar ? '' : currentUserName.charAt(0) }}
+            </div>
             <div class="msg-content">
               <div class="msg-text">{{ msg.content }}</div>
               <div class="msg-meta">
@@ -195,6 +198,7 @@ const conversations = ref([])
 const messages = ref([])
 const currentUserId = ref(null)
 const currentUserName = ref('')
+const currentConversationUserAvatar = ref('')
 const currentAdminId = ref(null)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
@@ -280,8 +284,9 @@ const startNewChat = (userId) => {
 }
 
 const openNewChat = async () => {
-  console.log('点击新建按钮')
+  console.log('点击新建按钮, showNewChat:', showNewChat.value)
   showNewChat.value = true
+  console.log('showNewChat设置后:', showNewChat.value)
   await loadAllUsers()
   console.log('用户列表加载完成:', allUsers.value.length)
 }
@@ -290,6 +295,7 @@ const openConversation = async (userId) => {
   currentUserId.value = userId
   const conv = conversations.value.find(c => c.userId === userId)
   currentUserName.value = conv ? conv.userName : ''
+  currentConversationUserAvatar.value = conv ? conv.userAvatar : ''
 
   const res = await api.get(`/messages/conversation/${userId}`)
   if (res.code === 200) {
@@ -435,10 +441,9 @@ onMounted(async () => {
   loadUnreadCount()
 
   // 如果URL带userId参数，直接打开对话
-  console.log('URL参数:', route.query)
   if (route.query.userId) {
-    console.log('打开对话:', route.query.userId)
-    openConversation(Number(route.query.userId))
+    const userId = Number(route.query.userId)
+    openConversation(userId)
   }
 
   // 每3秒刷新对话、未读数、用户输入状态
