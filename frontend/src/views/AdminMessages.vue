@@ -70,8 +70,8 @@
           <div v-for="conv in conversations" :key="conv.userId"
                :class="['conv-item', { active: currentUserId === conv.userId }]"
                @click="openConversation(conv.userId)">
-            <img v-if="conv.userAvatar" :src="conv.userAvatar" class="conv-avatar-img" />
-            <div v-else class="conv-avatar">{{ conv.userName.charAt(0) }}</div>
+            <img v-if="conv.userAvatar" :src="conv.userAvatar" class="conv-avatar-img" @error="e => e.target.style.display='none'" />
+            <div v-if="!conv.userAvatar || conv.avatarError" class="conv-avatar">{{ conv.userName.charAt(0) }}</div>
             <div class="conv-info">
               <div class="conv-name">
                 {{ conv.userName }}

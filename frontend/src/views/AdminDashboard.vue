@@ -34,7 +34,7 @@
     <main class="admin-main">
       <!-- 数据概览 -->
       <div class="stats-grid">
-        <div class="stat-card">
+        <router-link to="/admin/orders" class="stat-card clickable">
           <div class="stat-icon" style="background: linear-gradient(135deg, #667eea, #764ba2)">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           </div>
@@ -42,8 +42,9 @@
             <span class="stat-value">{{ dashboard.todayOrders || 0 }}</span>
             <span class="stat-label">今日订单</span>
           </div>
-        </div>
-        <div class="stat-card">
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </router-link>
+        <router-link to="/admin/orders" class="stat-card clickable">
           <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c)">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           </div>
@@ -51,8 +52,9 @@
             <span class="stat-value">{{ dashboard.activeRentals || 0 }}</span>
             <span class="stat-label">在租车辆</span>
           </div>
-        </div>
-        <div class="stat-card">
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </router-link>
+        <router-link to="/admin/orders" class="stat-card clickable">
           <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe)">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
@@ -60,8 +62,9 @@
             <span class="stat-value">{{ dashboard.pendingOrders || 0 }}</span>
             <span class="stat-label">待处理订单</span>
           </div>
-        </div>
-        <div class="stat-card">
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </router-link>
+        <router-link to="/admin/orders" class="stat-card clickable">
           <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b, #38f9d7)">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </div>
@@ -69,12 +72,25 @@
             <span class="stat-value">¥{{ dashboard.totalRevenue || 0 }}</span>
             <span class="stat-label">总收入</span>
           </div>
-        </div>
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </router-link>
       </div>
 
       <!-- 第二行统计 -->
       <div class="stats-grid secondary">
+        <router-link to="/admin/users" class="stat-card mini clickable">
+          <div class="stat-info">
+            <span class="stat-value">{{ dashboard.totalUsers || 0 }}</span>
+            <span class="stat-label">注册用户</span>
+          </div>
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </router-link>
         <div class="stat-card mini">
+          <div class="stat-info">
+            <span class="stat-value">{{ dashboard.todayNewUsers || 0 }}</span>
+            <span class="stat-label">今日新增</span>
+          </div>
+        </div>
           <div class="stat-info">
             <span class="stat-value">{{ dashboard.totalUsers || 0 }}</span>
             <span class="stat-label">注册用户</span>
@@ -240,6 +256,9 @@ onMounted(async () => {
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
 .stats-grid.secondary { grid-template-columns: repeat(3, 1fr); }
 .stat-card { background: #fff; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.stat-card.clickable { cursor: pointer; transition: all 0.2s; }
+.stat-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.arrow-icon { margin-left: auto; opacity: 0.5; }
 .stat-card.mini { justify-content: center; text-align: center; }
 .stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .stat-info { display: flex; flex-direction: column; }
