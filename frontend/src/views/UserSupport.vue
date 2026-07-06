@@ -165,18 +165,28 @@ const onTyping = async () => {
   api.post('/messages/typing', { receiverId: adminId.value }).catch(() => {})
 }
 
-// 轮询：刷新消息 + 检查管理员输入状态
+// 轮询：刷新消息 + 检查管理员输入状态 + 检查在线状态
 const startPolling = () => {
+  // 发送心跳（每10秒）
+  const heartbeatTimer = setInterval(() => {
+    api.post('/messages/heartbeat').catch(() => {})
+  }, 10000)
+
   pollTimer = setInterval(async () => {
     await loadMessages()
-    // 检查管理员是否在输入
     if (adminId.value) {
-      const res = await api.get(`/messages/typing-status/${adminId.value}`)
-      if (res.code === 200) {
-        adminTyping.value = res.data
+      // 检查管理员是否在输入
+      const typingRes = await api.get(`/messages/typing-status/${adminId.value}`)
+      if (typingRes.code === 200) {
+        adminTyping.value = typingRes.data
+      }
+      // 检查管理员是否在线
+      const onlineRes = await api.get(`/messages/online-status/${adminId.value}`)
+      if (onlineRes.code === 200) {
+        adminOnline.value = onlineRes.data
       }
     }
-  }, 2000) // 每2秒轮询
+  }, 3000) // 每3秒轮询
 }
 
 onMounted(async () => {

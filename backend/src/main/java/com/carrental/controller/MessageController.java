@@ -101,6 +101,8 @@ public class MessageController {
 
     // 输入状态存储（临时存储，生产环境应使用Redis）
     private static final ConcurrentHashMap<Long, Long> typingUsers = new ConcurrentHashMap<>();
+    // 在线状态存储（用户最后活跃时间）
+    private static final ConcurrentHashMap<Long, Long> onlineUsers = new ConcurrentHashMap<>();
 
     /**
      * 发送"正在输入"状态
@@ -111,7 +113,9 @@ public class MessageController {
         Long receiverId = Long.valueOf(body.get("receiverId").toString());
         // 记录输入状态，3秒后自动过期
         typingUsers.put(userId, System.currentTimeMillis());
-        // 3秒后自动清除
+        // 同时更新在线状态
+        onlineUsers.put(userId, System.currentTimeMillis());
+        // 3秒后自动清除输入状态
         new Thread(() -> {
             try { Thread.sleep(3000); } catch (InterruptedException e) {}
             Long lastTime = typingUsers.get(userId);
@@ -130,5 +134,25 @@ public class MessageController {
         Long lastTime = typingUsers.get(targetUserId);
         boolean isTyping = lastTime != null && (System.currentTimeMillis() - lastTime) < 3000;
         return Result.success(isTyping);
+    }
+
+    /**
+     * 心跳：用户定期调用，更新在线状态
+     */
+    @PostMapping("/heartbeat")
+    public Result<Void> heartbeat(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        onlineUsers.put(userId, System.currentTimeMillis());
+        return Result.success(null);
+    }
+
+    /**
+     * 查询对方是否在线（30秒内有活跃）
+     */
+    @GetMapping("/online-status/{targetUserId}")
+    public Result<Boolean> getOnlineStatus(@PathVariable Long targetUserId) {
+        Long lastTime = onlineUsers.get(targetUserId);
+        boolean isOnline = lastTime != null && (System.currentTimeMillis() - lastTime) < 30000; // 30秒内活跃
+        return Result.success(isOnline);
     }
 }

@@ -362,11 +362,18 @@ onMounted(async () => {
   loadUnreadCount()
 
   // 如果URL带userId参数，直接打开对话
+  console.log('URL参数:', route.query)
   if (route.query.userId) {
+    console.log('打开对话:', route.query.userId)
     openConversation(Number(route.query.userId))
   }
 
   // 每3秒刷新对话、未读数、用户输入状态
+  // 发送心跳（每10秒）
+  setInterval(() => {
+    api.post('/messages/heartbeat').catch(() => {})
+  }, 10000)
+
   setInterval(async () => {
     await loadConversations()
     loadUnreadCount()
