@@ -3,7 +3,11 @@
     <header class="header">
       <div class="header-content">
         <div class="logo" @click="$router.push('/admin')">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+            <defs><linearGradient id="gAdminLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient></defs>
+            <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gAdminLogo)"/>
+            <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           <span>御途管理后台</span>
         </div>
         <nav class="admin-nav">
