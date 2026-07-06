@@ -117,6 +117,22 @@
             </div>
           </div>
         </div>
+
+        <!-- AI推荐回复 -->
+        <div class="ai-suggestions" v-if="aiSuggestions.length > 0">
+          <div class="ai-suggestions-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            AI推荐回复
+          </div>
+          <div class="ai-suggestion-list">
+            <div v-for="(suggestion, index) in aiSuggestions" :key="index"
+                 class="ai-suggestion-item" @click="useSuggestion(suggestion)">
+              <span class="suggestion-text">{{ suggestion }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+        </div>
+
         <div class="chat-input">
           <input v-model="inputMessage" placeholder="输入消息..."
                  @keyup.enter="sendMessage"
@@ -149,6 +165,7 @@ const inputMessage = ref('')
 const messagesContainer = ref(null)
 const unreadCount = ref(0)
 const userTyping = ref(false)
+const aiSuggestions = ref([])
 
 const loadUnreadCount = async () => {
   const res = await api.get('/messages/unread')
@@ -180,9 +197,12 @@ const showNewChat = ref(false)
 const searchUser = ref('')
 
 const loadAllUsers = async () => {
+  console.log('加载用户列表...')
   const res = await api.get('/admin/users')
+  console.log('用户列表响应:', res)
   if (res.code === 200) {
     allUsers.value = res.data
+    console.log('用户数量:', allUsers.value.length)
   }
 }
 
@@ -211,6 +231,8 @@ const openConversation = async (userId) => {
     messages.value = res.data
     await nextTick()
     scrollToBottom()
+    // 加载AI推荐回复
+    loadAiSuggestions()
   }
 
   // 刷新对话列表以更新未读状态
@@ -244,6 +266,50 @@ const sendMessage = async () => {
 const onTyping = async () => {
   if (!currentUserId.value || !inputMessage.value.trim()) return
   api.post('/messages/typing', { receiverId: currentUserId.value }).catch(() => {})
+}
+
+// 获取AI推荐回复
+const loadAiSuggestions = async () => {
+  if (!currentUserId.value || messages.value.length === 0) {
+    aiSuggestions.value = []
+    return
+  }
+  // 获取最后一条用户消息
+  const lastUserMsg = [...messages.value].reverse().find(m => m.senderId !== currentAdminId.value)
+  if (!lastUserMsg) {
+    aiSuggestions.value = []
+    return
+  }
+
+  try {
+    const res = await api.post('/ai/chat', {
+      message: `作为客服，请根据用户消息"${lastUserMsg.content}"生成3条简短的客服回复建议，每条不超过30字，用JSON数组格式返回`,
+      history: []
+    })
+    if (res.code === 200 && res.data && res.data.reply) {
+      // 解析AI回复，提取建议
+      const reply = res.data.reply
+      try {
+        // 尝试解析JSON数组
+        const match = reply.match(/\[.*\]/s)
+        if (match) {
+          aiSuggestions.value = JSON.parse(match[0])
+        } else {
+          // 按换行分割
+          aiSuggestions.value = reply.split('\n').filter(s => s.trim()).slice(0, 3)
+        }
+      } catch {
+        aiSuggestions.value = [reply.substring(0, 50)]
+      }
+    }
+  } catch (e) {
+    aiSuggestions.value = []
+  }
+}
+
+const useSuggestion = (suggestion) => {
+  inputMessage.value = suggestion
+  aiSuggestions.value = []
 }
 
 onMounted(async () => {
@@ -376,4 +442,12 @@ watch(() => route.query.userId, (newUserId) => {
 .chat-input button:disabled { background: #ccc; cursor: not-allowed; }
 .chat-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; }
 .chat-placeholder p { margin-top: 16px; }
+
+/* AI推荐回复 */
+.ai-suggestions { padding: 12px 20px; background: #f8f9ff; border-top: 1px solid #e8e8ff; }
+.ai-suggestions-header { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #667eea; font-weight: 500; margin-bottom: 8px; }
+.ai-suggestion-list { display: flex; flex-direction: column; gap: 6px; }
+.ai-suggestion-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #fff; border: 1px solid #e8e8ff; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.ai-suggestion-item:hover { border-color: #667eea; background: #f0f2ff; }
+.suggestion-text { font-size: 13px; color: #333; flex: 1; }
 </style>
