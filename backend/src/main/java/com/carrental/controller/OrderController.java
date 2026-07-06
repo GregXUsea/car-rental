@@ -110,6 +110,16 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/confirm-pickup/{id}")
+    public Result<Order> confirmPickup(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        try {
+            return Result.success(orderService.confirmPickup(id, userId));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/early-return/{id}")
     public Result<Order> earlyReturn(@PathVariable Long id, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");

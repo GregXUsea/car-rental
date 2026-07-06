@@ -115,6 +115,11 @@
                   <span class="info-value">{{ order.actualReturnTime ? formatTime(order.actualReturnTime) : formatTime(order.endTime) + ' (预计)' }}</span>
                 </div>
               </div>
+              <!-- 还车倒计时提示 -->
+              <div class="return-reminder" v-if="order.status === 1 && !order.actualReturnTime">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e6a23c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>尊敬的用户，您需要在 <strong>{{ getReturnCountdown(order.endTime) }}</strong> 后归还车辆，请及时归还</span>
+              </div>
               <div class="info-item highlight">
                 <IconSvg name="money" :size="18" color="#f56c6c" />
                 <div class="info-content">
@@ -159,6 +164,10 @@
             <!-- 押金已支付，待支付租金 -->
             <el-button v-if="order.status === 1 && !order.rentalPaid" type="warning" @click="handlePayRental(order)">
               <IconSvg name="money" :size="16" color="#fff" /> 支付租金 ¥{{ order.totalCost }}
+            </el-button>
+            <!-- 确认取车 -->
+            <el-button v-if="order.status === 1 && order.depositPaid === 1 && !order.pickupConfirmed" type="success" @click="handleConfirmPickup(order)">
+              <IconSvg name="check" :size="16" color="#fff" /> 确认取车
             </el-button>
             <!-- 归还车辆 -->
             <el-button v-if="order.status === 1 && order.rentalPaid" type="primary" @click="handleReturn(order)">
@@ -551,6 +560,41 @@ const submitRating = async (orderId) => {
 const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 const orderStatusText = (s) => ({ 0: '待支付', 1: '在租中', 2: '已完成', 3: '已取消', 4: '预约中' }[s] || '未知')
 
+// 计算还车倒计时
+const getReturnCountdown = (endTime) => {
+  if (!endTime) return '未知'
+  const end = new Date(endTime)
+  const now = new Date()
+  const diff = end - now
+  if (diff <= 0) return '已到期'
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  if (days > 0) return `${days}天${hours}小时`
+  if (hours > 0) return `${hours}小时${minutes}分钟`
+  return `${minutes}分钟`
+}
+
+// 确认取车
+const handleConfirmPickup = async (order) => {
+  try {
+    await ElMessageBox.confirm(
+      '确认您已取到车辆？\n\n确认后将开始计时。',
+      '确认取车',
+      { confirmButtonText: '确认取车', cancelButtonText: '取消', type: 'success' }
+    )
+    const res = await api.post(`/orders/confirm-pickup/${order.id}`)
+    if (res.code === 200) {
+      ElMessage.success('确认取车成功，开始计时')
+      loadOrders()
+    } else {
+      ElMessage.error(res.message)
+    }
+  } catch (e) {
+    // 用户取消
+  }
+}
+
 // 判断是否在结束时间之前（用于显示提前归还按钮）
 const isBeforeEndTime = (order) => {
   if (!order.endTime) return false
@@ -666,6 +710,10 @@ const handleEarlyReturn = async (order) => {
 .driver-cost { font-size: 12px; color: #909399; margin-top: 2px; }
 .discount-badge { display: inline-block; font-size: 11px; color: #fff; background: linear-gradient(135deg, #f56c6c, #e74c3c); padding: 1px 8px; border-radius: 10px; margin-top: 4px; font-weight: 600; }
 .refund-text { font-size: 12px; color: #67c23a; margin-top: 2px; }
+
+/* 还车倒计时提示 */
+.return-reminder { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%); border: 1px solid #ffd43b; border-radius: 8px; margin-top: 12px; font-size: 13px; color: #666; }
+.return-reminder strong { color: #e6a23c; font-weight: 600; }
 
 /* 评价 */
 .rating-section { margin-top: 16px; padding: 12px; background: #f9f9f9; border-radius: 8px; }

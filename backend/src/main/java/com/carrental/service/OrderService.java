@@ -300,6 +300,29 @@ public class OrderService {
         return slots;
     }
 
+    /**
+     * 确认取车 - 用户确认已取到车辆，开始计时
+     */
+    @Transactional
+    public Order confirmPickup(Long orderId, Long userId) {
+        Order order = orderMapper.selectById(orderId);
+        if (order == null) throw new RuntimeException("订单不存在");
+        if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
+        if (order.getStatus() != 1) {
+            throw new RuntimeException("订单状态不允许确认取车");
+        }
+        if (order.getDepositPaid() == null || order.getDepositPaid() != 1) {
+            throw new RuntimeException("请先支付押金");
+        }
+
+        // 更新订单状态为"在租"（已经在status=1，但可以添加确认取车时间字段）
+        // 这里主要是确认用户已取车，可以记录取车确认时间
+        order.setStartTime(LocalDateTime.now()); // 从确认取车时间开始计时
+        orderMapper.updateById(order);
+
+        return order;
+    }
+
     @Transactional
     public Order returnCar(Long orderId, Long userId) {
         return returnCar(orderId, userId, false);

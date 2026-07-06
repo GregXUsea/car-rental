@@ -101,6 +101,13 @@
         </el-carousel>
       </div>
 
+      <!-- 订单提醒 -->
+      <div class="order-reminder" v-if="pendingOrders.length > 0" @click="$router.push('/orders')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e6a23c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>您有 <strong>{{ pendingOrders.length }}</strong> 个待处理订单，请及时查看</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+
       <!-- 搜索筛选 -->
       <div class="filter-bar">
         <div class="search-box" ref="searchBoxRef" @mouseenter="onSearchBoxEnter" @mouseleave="onSearchBoxLeave">
@@ -226,6 +233,7 @@ const sortMode = ref('default') // default, available, price-asc, price-desc
 const showSuggestions = ref(false)
 const searchBoxRef = ref(null)
 let sugHideTimer = null
+const pendingOrders = ref([]) // 待处理订单
 
 // 品牌列表（用于搜索建议）
 const allBrands = computed(() => {
@@ -318,6 +326,8 @@ onMounted(async () => {
   if (userRes.code === 200) {
     userInfo.value = userRes.data
     localStorage.setItem('userAvatar', userRes.data.avatar || '')
+    // 获取待处理订单
+    loadPendingOrders()
   }
 
   // 立即检查并显示欢迎弹窗（所有用户都显示）
@@ -378,6 +388,19 @@ const showHomeWelcome = (nickname, isNewUser, avatar) => {
     div.classList.add('hide')
     setTimeout(() => div.remove(), 400)
   }, 1200)
+}
+
+// 加载待处理订单
+const loadPendingOrders = async () => {
+  try {
+    const res = await api.get('/orders/my')
+    if (res.code === 200) {
+      // 筛选待处理订单：待支付、在租中、预约中
+      pendingOrders.value = res.data.filter(o => o.status === 0 || o.status === 1 || o.status === 4)
+    }
+  } catch (e) {
+    // 静默处理
+  }
 }
 
 const filteredCars = computed(() => {
@@ -566,6 +589,12 @@ const handleCommand = async (cmd) => {
 .home-carousel :deep(.el-carousel__indicator) { width: 24px; height: 6px; border-radius: 3px; background: #ddd; padding: 0; margin: 0 4px; transition: all 0.3s; }
 .home-carousel :deep(.el-carousel__indicator.is-active) { background: #667eea; width: 32px; }
 .home-ad-slide { height: 320px; display: flex; align-items: center; justify-content: space-between; padding: 0 60px; color: #fff; position: relative; overflow: hidden; }
+
+/* 订单提醒 */
+.order-reminder { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%); border: 1px solid #ffd43b; border-radius: 12px; margin-bottom: 20px; cursor: pointer; transition: all 0.3s; }
+.order-reminder:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,212,59,0.3); }
+.order-reminder span { flex: 1; font-size: 14px; color: #666; }
+.order-reminder strong { color: #e6a23c; font-size: 16px; }
 
 /* 装饰元素 */
 .home-ad-deco { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
