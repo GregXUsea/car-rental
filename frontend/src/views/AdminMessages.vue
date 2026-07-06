@@ -59,7 +59,7 @@
       <div class="conversation-list">
         <div class="list-header">
           <h3>消息列表</h3>
-          <button class="new-chat-btn" @click="showNewChat = true; loadAllUsers()">
+          <button class="new-chat-btn" @click.stop="openNewChat">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             新建
           </button>
@@ -275,6 +275,13 @@ const startNewChat = (userId) => {
   showNewChat.value = false
   searchUser.value = ''
   openConversation(userId)
+}
+
+const openNewChat = async () => {
+  console.log('点击新建按钮')
+  showNewChat.value = true
+  await loadAllUsers()
+  console.log('用户列表加载完成:', allUsers.value.length)
 }
 
 const openConversation = async (userId) => {
