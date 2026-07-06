@@ -33,7 +33,8 @@
 
     <main class="admin-main messages-layout">
       <!-- 新建对话弹窗 -->
-      <div class="new-chat-modal" v-if="showNewChat" @click.self="showNewChat = false">
+      <Teleport to="body">
+        <div class="new-chat-modal" v-if="showNewChat" @click.self="showNewChat = false">
         <div class="modal-content">
           <div class="modal-header">
             <h3>选择用户</h3>
@@ -54,6 +55,7 @@
           </div>
         </div>
       </div>
+      </Teleport>
 
       <!-- 左侧对话列表 -->
       <div class="conversation-list">
