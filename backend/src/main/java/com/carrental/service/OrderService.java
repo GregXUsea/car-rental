@@ -302,6 +302,11 @@ public class OrderService {
 
     @Transactional
     public Order returnCar(Long orderId, Long userId) {
+        return returnCar(orderId, userId, false);
+    }
+
+    @Transactional
+    public Order returnCar(Long orderId, Long userId, boolean earlyReturn) {
         Order order = orderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("订单不存在");
         if (!order.getUserId().equals(userId)) throw new RuntimeException("无权操作此订单");
@@ -325,9 +330,7 @@ public class OrderService {
         }
 
         // 新用户优惠：还车时按原订单折扣比例重新计算
-        // 不再重新调用 isNewUser()（此时订单已存在，会返回false导致优惠丢失）
         if (order.getDiscount() != null && order.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-            // 按原订单的折扣比例，对实际费用重新计算折扣
             BigDecimal originalCarCost = car.getPricePerDay().multiply(
                     BigDecimal.valueOf(Duration.between(order.getStartTime(), order.getEndTime()).toMinutes())
                             .divide(BigDecimal.valueOf(1440), 2, java.math.RoundingMode.HALF_UP));
@@ -336,7 +339,6 @@ public class OrderService {
                             .divide(BigDecimal.valueOf(1440), 2, java.math.RoundingMode.HALF_UP)) : BigDecimal.ZERO;
             BigDecimal originalTotalForDiscount = originalCarCost.add(originalDriverCost);
             if (originalTotalForDiscount.compareTo(BigDecimal.ZERO) > 0) {
-                // 按原折扣比例计算实际折扣
                 BigDecimal discountRatio = order.getDiscount().divide(originalTotalForDiscount, 4, java.math.RoundingMode.HALF_UP);
                 BigDecimal actualDiscount = actualCarCost.add(actualDriverCost).multiply(discountRatio).min(new BigDecimal("200"));
                 actualCarCost = actualCarCost.subtract(actualDiscount);
@@ -344,22 +346,24 @@ public class OrderService {
             }
         }
 
-        // 计算押金退还
-        // 规则：提前还车退还差额，超时不额外收费（鼓励及时还车）
         BigDecimal originalTotal = order.getTotalCost();
         BigDecimal actualTotal = actualCarCost.add(actualDriverCost);
         BigDecimal depositRefund = BigDecimal.ZERO;
 
-        if (actualTotal.compareTo(originalTotal) < 0) {
-            // 提前还车，退还差额
-            depositRefund = originalTotal.subtract(actualTotal);
+        if (earlyReturn) {
+            // 提前归还：租金不退，只退押金
+            depositRefund = order.getDeposit();
+            order.setTotalCost(originalTotal); // 保持原订单费用不变
+        } else {
+            // 正常还车：提前还车退还差额，超时不额外收费
+            if (actualTotal.compareTo(originalTotal) < 0) {
+                depositRefund = originalTotal.subtract(actualTotal);
+            }
+            BigDecimal totalRefund = order.getDeposit().add(depositRefund);
+            order.setTotalCost(actualTotal);
+            order.setDepositRefund(totalRefund);
         }
 
-        // 退还押金（全额退还，除非有损坏）
-        BigDecimal totalRefund = order.getDeposit().add(depositRefund);
-
-        order.setTotalCost(actualTotal);
-        order.setDepositRefund(totalRefund);
         order.setStatus(2); // 已完成
 
         // === 里程记录 ===

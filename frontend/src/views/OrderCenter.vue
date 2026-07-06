@@ -161,8 +161,12 @@
               <IconSvg name="money" :size="16" color="#fff" /> 支付租金 ¥{{ order.totalCost }}
             </el-button>
             <!-- 归还车辆 -->
-            <el-button v-if="order.status === 1" type="primary" @click="handleReturn(order)">
+            <el-button v-if="order.status === 1 && order.rentalPaid" type="primary" @click="handleReturn(order)">
               <IconSvg name="van" :size="16" color="#fff" /> 归还车辆
+            </el-button>
+            <!-- 提前归还（时间未到） -->
+            <el-button v-if="order.status === 1 && order.rentalPaid && isBeforeEndTime(order)" type="warning" plain @click="handleEarlyReturn(order)">
+              <IconSvg name="van" :size="16" /> 提前归还
             </el-button>
             <!-- 状态标签 -->
             <span v-if="order.status === 1 && order.rentalPaid" class="paid-badge">已付清</span>
@@ -484,6 +488,11 @@ const handleReturn = async (order) => {
     openPayDialog('rental', order.totalCost, order.id)
     return
   }
+  // 如果时间未到，提示使用提前归还
+  if (isBeforeEndTime(order)) {
+    ElMessage.warning('租赁时间未到，请使用"提前归还"功能')
+    return
+  }
   await ElMessageBox.confirm('确认归还车辆？系统将退还押金', '归还确认')
   const res = await api.post(`/orders/return/${order.id}`)
   if (res.code === 200) {
@@ -541,6 +550,46 @@ const submitRating = async (orderId) => {
 
 const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 const orderStatusText = (s) => ({ 0: '待支付', 1: '在租中', 2: '已完成', 3: '已取消', 4: '预约中' }[s] || '未知')
+
+// 判断是否在结束时间之前（用于显示提前归还按钮）
+const isBeforeEndTime = (order) => {
+  if (!order.endTime) return false
+  return new Date() < new Date(order.endTime)
+}
+
+// 提前归还（租金不退，押金退）
+const handleEarlyReturn = async (order) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认提前归还车辆？\n\n⚠️ 提前归还说明：\n• 租金不予退还\n• 押金 ¥${order.deposit} 将全额退还\n• 车辆状态将变为可租`,
+      '提前归还确认',
+      {
+        confirmButtonText: '确认提前归还',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    // 二次确认
+    await ElMessageBox.confirm(
+      '请再次确认：您确定要提前归还车辆吗？租金将不会退还。',
+      '二次确认',
+      {
+        confirmButtonText: '确定归还',
+        cancelButtonText: '再想想',
+        type: 'error'
+      }
+    )
+    const res = await api.post(`/orders/early-return/${order.id}`)
+    if (res.code === 200) {
+      ElMessage.success(`提前归还成功，押金 ¥${order.deposit} 已退还`)
+      loadOrders()
+    } else {
+      ElMessage.error(res.message)
+    }
+  } catch (e) {
+    // 用户取消确认
+  }
+}
 </script>
 
 <style scoped>

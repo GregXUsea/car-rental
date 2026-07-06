@@ -110,6 +110,16 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/early-return/{id}")
+    public Result<Order> earlyReturn(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        try {
+            return Result.success(orderService.returnCar(id, userId, true));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/cancel/{id}")
     public Result<Order> cancel(@PathVariable Long id, HttpServletRequest request) {
         try {
