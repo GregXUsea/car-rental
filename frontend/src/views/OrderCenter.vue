@@ -278,7 +278,15 @@
             <span>微信支付</span>
           </div>
           <div class="wechat-qrcode" @click="openPayPage">
-            <img src="/img/wechat-pay.png" alt="微信支付" style="width: 160px; height: 160px; border-radius: 8px;" />
+            <svg width="160" height="160" viewBox="0 0 160 160">
+              <rect width="160" height="160" fill="#fff" rx="8"/>
+              <rect x="15" y="15" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="105" y="15" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="15" y="105" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="60" y="60" width="40" height="40" fill="#07C160" rx="4"/>
+              <rect x="66" y="66" width="28" height="28" fill="#fff" rx="2"/>
+              <rect x="72" y="72" width="16" height="16" fill="#07C160" rx="2"/>
+            </svg>
           </div>
           <p class="wechat-tip">请使用微信扫描二维码</p>
           <p class="wechat-amount">¥{{ payAmount }}</p>
