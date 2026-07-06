@@ -329,8 +329,23 @@
           <span class="both-tag">已选择一起支付</span>
           <button class="both-cancel" @click="payBoth = false">取消，只付押金</button>
         </div>
-        <div class="pay-card-input">
-          <div class="card-label">模拟支付方式</div>
+        <!-- 支付方式选择 -->
+        <div class="pay-method-selector">
+          <div class="pay-method" :class="{ active: payMethod === 'wechat' }" @click="payMethod = 'wechat'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160">
+              <path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/>
+            </svg>
+            <span>微信支付</span>
+          </div>
+          <div class="pay-method" :class="{ active: payMethod === 'card' }" @click="payMethod = 'card'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+            </svg>
+            <span>银行卡</span>
+          </div>
+        </div>
+        <!-- 银行卡输入 -->
+        <div v-if="payMethod === 'card'" class="pay-card-input">
           <div class="card-row">
             <input v-model="cardNum1" maxlength="4" placeholder="6222" class="card-input" />
             <span class="card-dash">-</span>
@@ -339,6 +354,22 @@
             <input v-model="cardNum3" maxlength="4" placeholder="6666" class="card-input" />
             <span class="card-dash">-</span>
             <input v-model="cardNum4" maxlength="4" placeholder="0001" class="card-input" />
+          </div>
+        </div>
+        <!-- 微信支付二维码 -->
+        <div v-if="payMethod === 'wechat'" class="wechat-pay-area">
+          <div class="wechat-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/></svg>
+            <span>微信支付</span>
+          </div>
+          <div class="wechat-qrcode">
+            <canvas ref="qrcodeCanvas"></canvas>
+          </div>
+          <p class="wechat-tip">请使用微信扫描二维码</p>
+          <p class="wechat-amount">¥{{ payAmount }}</p>
+          <div class="pay-code-display">
+            <span class="code-label">支付验证码：</span>
+            <span class="code-value">{{ payCode }}</span>
           </div>
         </div>
       </div>
@@ -373,6 +404,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
+import QRCode from 'qrcode'
 
 const route = useRoute()
 const router = useRouter()
@@ -415,6 +447,40 @@ const cardNum1 = ref('6222')
 const cardNum2 = ref('8888')
 const cardNum3 = ref('6666')
 const cardNum4 = ref('0001')
+const payMethod = ref('wechat')
+const payCode = ref('')
+const payConfirmed = ref(false)
+const qrcodeCanvas = ref(null)
+
+// 生成6位支付验证码
+const generatePayCode = () => {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+// 获取本机IP地址
+const getLocalIP = () => {
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return '192.168.184.1'
+  }
+  return hostname
+}
+
+// 生成真实二维码
+const generateQRCode = async () => {
+  if (!qrcodeCanvas.value || !payCode.value) return
+  const localIP = getLocalIP()
+  const payUrl = `http://${localIP}:5173/pay?code=${payCode.value}&amount=${payAmount.value}`
+  try {
+    await QRCode.toCanvas(qrcodeCanvas.value, payUrl, {
+      width: 160,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    })
+  } catch (err) {
+    console.error('二维码生成失败:', err)
+  }
+}
 
 onMounted(async () => {
   const res = await api.get(`/cars/detail/${route.params.id}`)
@@ -422,9 +488,50 @@ onMounted(async () => {
   else { ElMessage.error(res.message); router.push('/') }
   loadDrivers()
   loadAllCars()
-  // 加载优惠券状态
   loadCouponStatus()
 })
+
+// 监听支付弹窗显示，生成二维码并开始轮询
+let payPollTimer = null
+
+watch(showPayDialog, (val) => {
+  if (val && payMethod.value === 'wechat') {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 300)
+      startPayPolling()
+    })
+  } else if (!val) {
+    stopPayPolling()
+  }
+})
+
+watch(payMethod, (val) => {
+  if (val === 'wechat' && showPayDialog.value) {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 300)
+      startPayPolling()
+    })
+  }
+})
+
+const startPayPolling = () => {
+  stopPayPolling()
+  payPollTimer = setInterval(async () => {
+    if (!payCode.value) return
+    try {
+      const res = await api.get(`/payment/status/${payCode.value}`)
+      if (res.code === 200 && res.data === true) {
+        payConfirmed.value = true
+        stopPayPolling()
+        ElMessage.success('手机端已确认支付！')
+      }
+    } catch (e) {}
+  }, 1000)
+}
+
+const stopPayPolling = () => {
+  if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
+}
 
 // ====== 左右切换 ======
 const loadAllCars = async () => {
@@ -587,14 +694,19 @@ const openPayDialog = (type, amount, orderId) => {
   payOrderId.value = orderId
   payStep.value = 'confirm'
   payBoth.value = false
+  payCode.value = generatePayCode()
+  payConfirmed.value = false
   payDialogTitle.value = type === 'deposit' ? '支付押金' : '支付租金'
-  // 设置押金和租金金额
   payDepositAmount.value = car.value?.deposit || 0
   payRentalAmount.value = totalCost.value || 0
   showPayDialog.value = true
 }
 
 const processPayment = async () => {
+  if (payMethod.value === 'wechat' && !payConfirmed.value) {
+    ElMessage.warning('请先在手机端确认支付')
+    return
+  }
   payStep.value = 'processing'
   // 模拟支付过程（1.5秒）
   await new Promise(resolve => setTimeout(resolve, 1500))
@@ -1142,6 +1254,23 @@ const handleImgError = (e) => {
 .card-label { font-size: 13px; color: #999; margin-bottom: 10px; }
 .card-row { display: flex; align-items: center; gap: 8px; }
 .card-input { width: 60px; padding: 8px; text-align: center; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; font-weight: 600; letter-spacing: 2px; outline: none; }
+
+/* 支付方式选择 */
+.pay-method-selector { display: flex; gap: 16px; margin: 16px 0; }
+.pay-method { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 2px solid #eee; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+.pay-method:hover { border-color: #ddd; }
+.pay-method.active { border-color: #07C160; background: #f0faf4; }
+.pay-method span { font-size: 14px; font-weight: 500; }
+
+/* 微信支付区域 */
+.wechat-pay-area { text-align: center; padding: 20px; background: #f8f9fb; border-radius: 12px; }
+.wechat-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px; font-size: 16px; font-weight: 600; color: #07C160; }
+.wechat-qrcode { display: inline-block; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 12px; }
+.wechat-tip { font-size: 13px; color: #999; margin-bottom: 8px; }
+.wechat-amount { font-size: 18px; font-weight: 600; color: #333; }
+.pay-code-display { margin-top: 12px; padding: 10px; background: #fff; border-radius: 8px; border: 1px dashed #07C160; }
+.code-label { font-size: 13px; color: #666; }
+.code-value { font-size: 24px; font-weight: 700; color: #07C160; letter-spacing: 4px; margin-left: 8px; }
 .card-input:focus { border-color: #667eea; }
 .card-dash { color: #999; font-weight: 600; }
 
