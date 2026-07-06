@@ -244,8 +244,23 @@
           <span class="both-tag">已选择一起支付</span>
           <button class="both-cancel" @click="payBoth = false">取消，只付押金</button>
         </div>
-        <div class="pay-card-input">
-          <div class="card-label">模拟支付方式</div>
+        <!-- 支付方式选择 -->
+        <div class="pay-method-selector">
+          <div class="pay-method" :class="{ active: payMethod === 'wechat' }" @click="payMethod = 'wechat'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160">
+              <path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4zm-2.7 3.5c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm5.4 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zM21.92 14.54c-.36-1.04-1.15-1.9-2.17-2.47.56-.97.91-2.07.91-3.24 0-3.59-2.94-6.5-6.5-6.5s-6.5 2.91-6.5 6.5 2.94 6.5 6.5 6.5c.69 0 1.36-.11 1.98-.31L18.5 19l-.58-2.15c.84-.73 1.4-1.73 1.4-2.81 0-.38-.05-.75-.13-1.1l.9-.36zM14 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+            </svg>
+            <span>微信支付</span>
+          </div>
+          <div class="pay-method" :class="{ active: payMethod === 'card' }" @click="payMethod = 'card'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+            </svg>
+            <span>银行卡</span>
+          </div>
+        </div>
+        <!-- 银行卡输入 -->
+        <div v-if="payMethod === 'card'" class="pay-card-input">
           <div class="card-row">
             <input v-model="cardNum1" maxlength="4" placeholder="6222" class="card-input" />
             <span class="card-dash">-</span>
@@ -255,6 +270,26 @@
             <span class="card-dash">-</span>
             <input v-model="cardNum4" maxlength="4" placeholder="0001" class="card-input" />
           </div>
+        </div>
+        <!-- 微信支付二维码 -->
+        <div v-if="payMethod === 'wechat'" class="wechat-pay-area">
+          <div class="wechat-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/></svg>
+            <span>微信支付</span>
+          </div>
+          <div class="wechat-qrcode">
+            <svg width="160" height="160" viewBox="0 0 160 160">
+              <rect width="160" height="160" fill="#fff" rx="8"/>
+              <rect x="15" y="15" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="105" y="15" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="15" y="105" width="40" height="40" fill="#000" rx="2"/>
+              <rect x="60" y="60" width="40" height="40" fill="#07C160" rx="4"/>
+              <rect x="66" y="66" width="28" height="28" fill="#fff" rx="2"/>
+              <rect x="72" y="72" width="16" height="16" fill="#07C160" rx="2"/>
+            </svg>
+          </div>
+          <p class="wechat-tip">请使用微信扫描二维码支付</p>
+          <p class="wechat-amount">¥{{ payAmount }}</p>
         </div>
       </div>
       <div v-if="payStep === 'processing'" class="pay-processing">
@@ -432,6 +467,7 @@ const cardNum1 = ref('6222')
 const cardNum2 = ref('8888')
 const cardNum3 = ref('6666')
 const cardNum4 = ref('0001')
+const payMethod = ref('wechat') // 支付方式：wechat 或 card
 
 const openPayDialog = (type, amount, orderId, order) => {
   payType.value = type
@@ -765,6 +801,20 @@ const handleEarlyReturn = async (order) => {
 .card-label { font-size: 13px; color: #999; margin-bottom: 10px; }
 .card-row { display: flex; align-items: center; gap: 8px; }
 .card-input { width: 60px; padding: 8px; text-align: center; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; font-weight: 600; letter-spacing: 2px; outline: none; }
+
+/* 支付方式选择 */
+.pay-method-selector { display: flex; gap: 16px; margin: 16px 0; }
+.pay-method { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 2px solid #eee; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+.pay-method:hover { border-color: #ddd; }
+.pay-method.active { border-color: #07C160; background: #f0faf4; }
+.pay-method span { font-size: 14px; font-weight: 500; }
+
+/* 微信支付区域 */
+.wechat-pay-area { text-align: center; padding: 20px; background: #f8f9fb; border-radius: 12px; }
+.wechat-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px; font-size: 16px; font-weight: 600; color: #07C160; }
+.wechat-qrcode { display: inline-block; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 12px; }
+.wechat-tip { font-size: 13px; color: #999; margin-bottom: 8px; }
+.wechat-amount { font-size: 18px; font-weight: 600; color: #333; }
 .card-input:focus { border-color: #667eea; }
 .card-dash { color: #999; font-weight: 600; }
 
