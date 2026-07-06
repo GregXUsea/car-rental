@@ -188,24 +188,31 @@ const userAvatar = ref(localStorage.getItem('userAvatar') || '')
 const sidebarOpen = ref(true) // 桌面端默认打开
 const showScrollTop = ref(false)
 
-// 多会话管理
-const CONVERSATIONS_KEY = 'ai_conversations'
+// 多会话管理 - 每个用户独立的会话历史
 const conversations = ref([])
 const currentConvId = ref('')
+const currentUserId = ref('')
 
 // 当前是否正在创建新对话（防重复点击）
 const creatingNew = ref(false)
 
+// 获取用户独立的storage key
+const getConversationsKey = () => `ai_conversations_${currentUserId.value}`
+
 onMounted(async () => {
-  loadConversations()
-  // 获取用户头像
+  // 获取用户信息
   try {
-    const res = await api.get('/user/info')
-    if (res.code === 200 && res.data.avatar) {
-      userAvatar.value = res.data.avatar
-      localStorage.setItem('userAvatar', res.data.avatar)
+    const userRes = await api.get('/user/info')
+    if (userRes.code === 200) {
+      currentUserId.value = userRes.data.id
+      if (userRes.data.avatar) {
+        userAvatar.value = userRes.data.avatar
+        localStorage.setItem('userAvatar', userRes.data.avatar)
+      }
     }
   } catch (e) { /* ignore */ }
+
+  loadConversations()
 })
 
 const examples = [
@@ -219,23 +226,12 @@ const examples = [
 
 // ====== 多会话管理 ======
 const loadConversations = () => {
+  if (!currentUserId.value) return
   try {
-    const saved = localStorage.getItem(CONVERSATIONS_KEY)
+    const key = getConversationsKey()
+    const saved = localStorage.getItem(key)
     if (saved) {
       conversations.value = JSON.parse(saved)
-    }
-    // 兼容旧版单会话数据
-    if (conversations.value.length === 0) {
-      const oldHistory = localStorage.getItem('ai_chat_history')
-      if (oldHistory) {
-        const msgs = JSON.parse(oldHistory)
-        if (Array.isArray(msgs) && msgs.length > 0) {
-          const conv = buildConvFromMessages(msgs)
-          conversations.value.push(conv)
-          saveConversations()
-        }
-        localStorage.removeItem('ai_chat_history')
-      }
     }
     // 选中会话：优先恢复上次活跃的会话，否则选最新
     if (conversations.value.length > 0) {
@@ -256,8 +252,10 @@ const loadConversations = () => {
 }
 
 const saveConversations = () => {
+  if (!currentUserId.value) return
   try {
-    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations.value))
+    const key = getConversationsKey()
+    localStorage.setItem(key, JSON.stringify(conversations.value))
   } catch (e) { /* ignore */ }
 }
 
