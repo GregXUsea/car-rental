@@ -68,14 +68,21 @@ public class AIService {
         }
 
         String systemPrompt = "你是一个专业的汽车租赁顾问AI助手。用户会描述他们的用车需求，你需要从可用车辆列表中推荐最匹配的车型。\n\n" +
-                "【重要区分规则】\n" +
-                "1. 商务接待：推荐用途包含「商务」的车辆，优先黑色豪华轿车（奔驰E级、宝马5系、奥迪A6L）或GL8商务MPV\n" +
-                "2. 婚庆用车：推荐用途包含「婚庆」的车辆，优先红色/白色豪华车型（红旗H9、保时捷Macan、红色宝马、白色奔驰）\n" +
-                "3. 家庭出游：推荐用途包含「家庭」的车辆，优先SUV和MPV（赛那、CR-V、理想L7）\n" +
-                "4. 日常通勤：推荐用途包含「通勤」的车辆，优先经济省油车型（卡罗拉、飞度）\n\n" +
-                "请用中文回答，以JSON格式返回推荐结果，格式如下：\n" +
-                "{\"summary\":\"总体推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"匹配度如95%\"}]}\n" +
-                "最多推荐3辆车，按匹配度从高到低排序。只返回JSON，不要其他文字。";
+                "【核心规则】\n" +
+                "1. 必须从提供的车辆列表中选择，不要推荐列表中没有的车型\n" +
+                "2. 根据用户预算、人数、用途等筛选最合适的车辆\n" +
+                "3. 商务接待：推荐用途包含「商务」的车辆\n" +
+                "4. 婚庆用车：推荐用途包含「婚庆」的车辆\n" +
+                "5. 家庭出游：推荐用途包含「家庭」的车辆\n" +
+                "6. 日常通勤：推荐用途包含「通勤」的车辆\n\n" +
+                "【输出格式 - 必须严格遵守】\n" +
+                "只返回JSON，不要任何其他文字、标题或说明。格式：\n" +
+                "{\"summary\":\"一句话总结推荐理由\",\"recommendations\":[{\"carId\":数字ID,\"reason\":\"推荐理由（30字内）\",\"matchScore\":\"95%\"}]}\n\n" +
+                "要求：\n" +
+                "- 最多推荐3辆车，按匹配度从高到低\n" +
+                "- carId必须是车辆列表中的真实ID\n" +
+                "- matchScore是百分比数字\n" +
+                "- 只返回纯JSON，不要markdown代码块";
 
         String userPrompt = String.format("我的需求：%s\n\n可用车辆列表：\n%s", userRequirement, carListStr);
 
@@ -820,28 +827,38 @@ public class AIService {
                 json = json.replaceAll("```json?", "").replaceAll("```", "").trim();
             }
 
+            // 尝试找到JSON对象
+            int start = json.indexOf('{');
+            int end = json.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+                json = json.substring(start, end + 1);
+            }
+
             JsonNode root = objectMapper.readTree(json);
             AIRecommendResult result = new AIRecommendResult();
-            result.setSummary(root.path("summary").asText());
+            result.setSummary(root.path("summary").asText("为您推荐以下车型"));
 
             Map<Long, Car> carMap = availableCars.stream()
                     .collect(Collectors.toMap(Car::getId, c -> c));
 
             List<AIRecommendResult.RecommendItem> items = new ArrayList<>();
             JsonNode recs = root.path("recommendations");
-            for (JsonNode rec : recs) {
-                AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
-                Long carId = rec.path("carId").asLong();
-                item.setCar(carMap.get(carId));
-                item.setReason(rec.path("reason").asText());
-                item.setMatchScore(rec.path("matchScore").asText());
-                if (item.getCar() != null) {
-                    items.add(item);
+            if (recs.isArray()) {
+                for (JsonNode rec : recs) {
+                    AIRecommendResult.RecommendItem item = new AIRecommendResult.RecommendItem();
+                    Long carId = rec.path("carId").asLong();
+                    item.setCar(carMap.get(carId));
+                    item.setReason(rec.path("reason").asText("符合您的需求"));
+                    item.setMatchScore(rec.path("matchScore").asText("85%"));
+                    if (item.getCar() != null) {
+                        items.add(item);
+                    }
                 }
             }
             result.setRecommendations(items);
             return result;
         } catch (Exception e) {
+            // 解析失败，使用本地推荐
             return fallbackRecommend("", availableCars);
         }
     }
