@@ -278,15 +278,7 @@
             <span>微信支付</span>
           </div>
           <div class="wechat-qrcode" @click="openPayPage">
-            <svg width="160" height="160" viewBox="0 0 160 160">
-              <rect width="160" height="160" fill="#fff" rx="8"/>
-              <rect x="15" y="15" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="105" y="15" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="15" y="105" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="60" y="60" width="40" height="40" fill="#07C160" rx="4"/>
-              <rect x="66" y="66" width="28" height="28" fill="#fff" rx="2"/>
-              <rect x="72" y="72" width="16" height="16" fill="#07C160" rx="2"/>
-            </svg>
+            <canvas ref="qrcodeCanvas"></canvas>
           </div>
           <p class="wechat-tip">请使用微信扫描二维码</p>
           <p class="wechat-amount">¥{{ payAmount }}</p>
@@ -326,6 +318,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 import IconSvg from '../components/IconSvg.vue'
+import QRCode from 'qrcode'
 
 const orders = ref([])
 const activeTab = ref('my')
@@ -475,6 +468,25 @@ const cardNum4 = ref('0001')
 const payMethod = ref('wechat') // 支付方式：wechat 或 card
 const payCode = ref('') // 支付验证码
 const payConfirmed = ref(false) // 用户是否在手机端确认
+const qrcodeCanvas = ref(null) // 二维码画布
+
+// 生成真实二维码
+const generateQRCode = async () => {
+  if (!qrcodeCanvas.value || !payCode.value) return
+  const payUrl = `${window.location.origin}/pay?code=${payCode.value}&amount=${payAmount.value}`
+  try {
+    await QRCode.toCanvas(qrcodeCanvas.value, payUrl, {
+      width: 160,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    })
+  } catch (err) {
+    console.error('二维码生成失败:', err)
+  }
+}
 
 const openPayDialog = (type, amount, orderId, order) => {
   payType.value = type
@@ -488,6 +500,10 @@ const openPayDialog = (type, amount, orderId, order) => {
   payDepositAmount.value = order?.deposit || 0
   payRentalAmount.value = order?.totalCost || 0
   showPayDialog.value = true
+  // 延迟生成二维码（等待DOM渲染）
+  nextTick(() => {
+    setTimeout(() => generateQRCode(), 100)
+  })
 }
 
 // 生成6位支付验证码
