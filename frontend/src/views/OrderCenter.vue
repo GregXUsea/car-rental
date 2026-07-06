@@ -277,19 +277,16 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="#07C160"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.87 1.1 3.55 2.82 4.66L4 17l2.5-1.18c.94.3 1.96.47 3 .47.17 0 .34-.01.5-.02a5.76 5.76 0 01-.22-1.53c0-3.17 2.94-5.75 6.5-5.75.17 0 .34.01.5.02C14.84 5.7 12.41 4 9.5 4z"/></svg>
             <span>微信支付</span>
           </div>
-          <div class="wechat-qrcode">
-            <svg width="160" height="160" viewBox="0 0 160 160">
-              <rect width="160" height="160" fill="#fff" rx="8"/>
-              <rect x="15" y="15" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="105" y="15" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="15" y="105" width="40" height="40" fill="#000" rx="2"/>
-              <rect x="60" y="60" width="40" height="40" fill="#07C160" rx="4"/>
-              <rect x="66" y="66" width="28" height="28" fill="#fff" rx="2"/>
-              <rect x="72" y="72" width="16" height="16" fill="#07C160" rx="2"/>
-            </svg>
+          <div class="wechat-qrcode" @click="openPayPage">
+            <img src="/img/wechat-pay.png" alt="微信支付" style="width: 160px; height: 160px; border-radius: 8px;" />
           </div>
-          <p class="wechat-tip">请使用微信扫描二维码支付</p>
+          <p class="wechat-tip">请使用微信扫描二维码</p>
           <p class="wechat-amount">¥{{ payAmount }}</p>
+          <div class="pay-code-display">
+            <span class="code-label">支付验证码：</span>
+            <span class="code-value">{{ payCode }}</span>
+          </div>
+          <p class="pay-confirm-tip">扫码后在弹出页面输入验证码，然后点击下方"确认已支付"</p>
         </div>
       </div>
       <div v-if="payStep === 'processing'" class="pay-processing">
@@ -468,6 +465,8 @@ const cardNum2 = ref('8888')
 const cardNum3 = ref('6666')
 const cardNum4 = ref('0001')
 const payMethod = ref('wechat') // 支付方式：wechat 或 card
+const payCode = ref('') // 支付验证码
+const payConfirmed = ref(false) // 用户是否在手机端确认
 
 const openPayDialog = (type, amount, orderId, order) => {
   payType.value = type
@@ -475,13 +474,30 @@ const openPayDialog = (type, amount, orderId, order) => {
   payOrderId.value = orderId
   payStep.value = 'confirm'
   payBoth.value = false
+  payCode.value = generatePayCode()
+  payConfirmed.value = false
   payDialogTitle.value = type === 'deposit' ? '支付押金' : '支付租金'
   payDepositAmount.value = order?.deposit || 0
   payRentalAmount.value = order?.totalCost || 0
   showPayDialog.value = true
 }
 
+// 生成6位支付验证码
+const generatePayCode = () => {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+// 打开支付页面（新窗口）
+const openPayPage = () => {
+  const payUrl = `/pay?code=${payCode.value}&amount=${payAmount.value}`
+  window.open(payUrl, '_blank', 'width=400,height=600')
+}
+
 const processPayment = async () => {
+  if (payMethod.value === 'wechat' && !payConfirmed.value) {
+    ElMessage.warning('请先在手机端确认支付')
+    return
+  }
   payStep.value = 'processing'
   await new Promise(resolve => setTimeout(resolve, 1500))
 
@@ -815,6 +831,10 @@ const handleEarlyReturn = async (order) => {
 .wechat-qrcode { display: inline-block; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 12px; }
 .wechat-tip { font-size: 13px; color: #999; margin-bottom: 8px; }
 .wechat-amount { font-size: 18px; font-weight: 600; color: #333; }
+.pay-code-display { margin-top: 12px; padding: 10px; background: #fff; border-radius: 8px; border: 1px dashed #07C160; }
+.code-label { font-size: 13px; color: #666; }
+.code-value { font-size: 24px; font-weight: 700; color: #07C160; letter-spacing: 4px; margin-left: 8px; }
+.pay-confirm-tip { font-size: 12px; color: #999; margin-top: 8px; }
 .card-input:focus { border-color: #667eea; }
 .card-dash { color: #999; font-weight: 600; }
 

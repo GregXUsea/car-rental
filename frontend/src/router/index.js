@@ -65,6 +65,11 @@ const routes = [
     component: () => import('../views/UserSupport.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/pay',
+    name: 'PayConfirm',
+    component: () => import('../views/PayConfirm.vue')
+  },
   // 管理员路由
   {
     path: '/admin',
