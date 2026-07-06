@@ -32,10 +32,37 @@
     </header>
 
     <main class="admin-main messages-layout">
+      <!-- 新建对话弹窗 -->
+      <div class="new-chat-modal" v-if="showNewChat" @click.self="showNewChat = false">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>选择用户</h3>
+            <button class="close-btn" @click="showNewChat = false">×</button>
+          </div>
+          <div class="modal-body">
+            <input v-model="searchUser" placeholder="搜索用户名..." class="search-input" />
+            <div class="user-list">
+              <div v-for="user in filteredUsers" :key="user.id" class="user-item" @click="startNewChat(user.id)">
+                <img v-if="user.avatar" :src="user.avatar" class="user-avatar" />
+                <div v-else class="user-avatar">{{ (user.nickname || user.username).charAt(0) }}</div>
+                <div class="user-info">
+                  <span class="user-name">{{ user.nickname || user.username }}</span>
+                  <span class="user-orders">{{ user.orderCount || 0 }}个订单</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 左侧对话列表 -->
       <div class="conversation-list">
         <div class="list-header">
           <h3>消息列表</h3>
+          <button class="new-chat-btn" @click="showNewChat = true; loadAllUsers()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新建
+          </button>
         </div>
         <div class="list-body">
           <div v-for="conv in conversations" :key="conv.userId"
@@ -56,7 +83,7 @@
             </div>
           </div>
           <div class="empty-list" v-if="conversations.length === 0">
-            暂无消息记录
+            暂无消息记录，点击"新建"开始对话
           </div>
         </div>
       </div>
@@ -129,6 +156,33 @@ const loadConversations = async () => {
   if (res.code === 200) {
     conversations.value = res.data
   }
+}
+
+// 加载所有用户（用于新建对话）
+const allUsers = ref([])
+const showNewChat = ref(false)
+const searchUser = ref('')
+
+const loadAllUsers = async () => {
+  const res = await api.get('/admin/users')
+  if (res.code === 200) {
+    allUsers.value = res.data
+  }
+}
+
+const filteredUsers = computed(() => {
+  if (!searchUser.value) return allUsers.value
+  const kw = searchUser.value.toLowerCase()
+  return allUsers.value.filter(u =>
+    u.username.toLowerCase().includes(kw) ||
+    (u.nickname && u.nickname.toLowerCase().includes(kw))
+  )
+})
+
+const startNewChat = (userId) => {
+  showNewChat.value = false
+  searchUser.value = ''
+  openConversation(userId)
 }
 
 const openConversation = async (userId) => {
@@ -218,9 +272,26 @@ watch(() => route.query.userId, (newUserId) => {
 .messages-layout { display: flex; gap: 0; height: calc(100vh - 60px); padding: 0 !important; }
 
 .conversation-list { width: 300px; background: #fff; border-right: 1px solid #eee; display: flex; flex-direction: column; }
-.list-header { padding: 16px 20px; border-bottom: 1px solid #eee; }
-.list-header h3 { font-size: 16px; color: #333; }
+.list-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.list-header h3 { font-size: 16px; color: #333; margin: 0; }
 .list-body { flex: 1; overflow-y: auto; }
+
+/* 新建对话弹窗 */
+.new-chat-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal-content { background: #fff; border-radius: 12px; width: 400px; max-height: 500px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #eee; }
+.modal-header h3 { font-size: 16px; }
+.close-btn { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; }
+.modal-body { padding: 16px; }
+.search-input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 12px; }
+.search-input:focus { border-color: #667eea; }
+.user-list { max-height: 350px; overflow-y: auto; }
+.user-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; cursor: pointer; }
+.user-item:hover { background: #f5f7fa; }
+.user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.user-info { display: flex; flex-direction: column; }
+.user-name { font-size: 14px; color: #333; }
+.user-orders { font-size: 12px; color: #999; }
 .conv-item { display: flex; align-items: center; gap: 12px; padding: 14px 20px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #f5f5f5; }
 .conv-item:hover { background: #f9f9f9; }
 .conv-item.active { background: #f0f2ff; }

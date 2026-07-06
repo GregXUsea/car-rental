@@ -2,31 +2,28 @@
   <div class="dashboard">
     <header class="header">
       <div class="header-content">
-        <div class="logo" @click="$router.push('/')">
-          <div class="logo-icon">
-            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-              <defs>
-                <linearGradient id="gDashLogo" x1="4" y1="2" x2="44" y2="46"><stop offset="0%" stop-color="#FFD700"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
-              </defs>
-              <path d="M24 3 L7 11 L7 22 C7 31 14.5 39 24 43 C33.5 39 41 31 41 22 L41 11 Z" fill="url(#gDashLogo)"/>
-              <path d="M16 23 L21 28 L32 17" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="logo-text">
-            <span class="logo-name">御途租车</span>
-            <span class="logo-sub">AI维护预测看板</span>
-          </div>
+        <div class="logo" @click="$router.push('/admin')">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>御途管理后台</span>
         </div>
-        <nav class="nav-right">
-          <a class="nav-link" @click.prevent="$router.push('/')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            首页
-          </a>
-          <a class="nav-link" @click.prevent="$router.push('/orders')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            订单
-          </a>
+        <nav class="admin-nav">
+          <router-link to="/admin" class="nav-item">仪表盘</router-link>
+          <router-link to="/admin/orders" class="nav-item">订单管理</router-link>
+          <router-link to="/admin/users" class="nav-item">用户管理</router-link>
+          <router-link to="/admin/messages" class="nav-item">消息中心</router-link>
+          <router-link to="/admin/maintenance" class="nav-item active">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+            维护看板
+          </router-link>
+          <router-link to="/ai-assistant" class="nav-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+            AI助手
+          </router-link>
         </nav>
+        <div class="header-right">
+          <span class="admin-badge">管理员</span>
+          <router-link to="/" class="back-link">返回前台</router-link>
+        </div>
       </div>
     </header>
 
@@ -750,16 +747,17 @@ onMounted(() => { loadAll() })
 .dashboard { min-height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; }
 
 /* Header */
-.header { background: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
-.header-content { max-width: 1400px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
-.logo { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-.logo-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-.logo-text { display: flex; flex-direction: column; }
-.logo-name { font-size: 18px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; }
-.logo-sub { font-size: 9px; color: #999; letter-spacing: 1px; }
-.nav-right { display: flex; align-items: center; gap: 8px; }
-.nav-link { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; color: #666; text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.2s; }
-.nav-link:hover { background: #f5f7fa; color: #333; }
+.header { background: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.header-content { max-width: 1400px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 24px; }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: #333; cursor: pointer; }
+.admin-nav { display: flex; gap: 4px; flex: 1; }
+.nav-item { padding: 8px 16px; border-radius: 8px; font-size: 14px; color: #666; text-decoration: none; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.nav-item:hover { background: #f0f2ff; color: #667eea; }
+.nav-item.active { background: #667eea; color: #fff; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.admin-badge { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.back-link { font-size: 13px; color: #999; text-decoration: none; }
+.back-link:hover { color: #667eea; }
 
 .main { max-width: 1400px; margin: 0 auto; padding: 24px; flex: 1; width: 100%; box-sizing: border-box; }
 
