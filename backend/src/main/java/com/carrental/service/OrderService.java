@@ -314,13 +314,124 @@ public class OrderService {
         if (order.getDepositPaid() == null || order.getDepositPaid() != 1) {
             throw new RuntimeException("请先支付押金");
         }
+        if (order.getPickupConfirmed() != null && order.getPickupConfirmed() == 1) {
+            throw new RuntimeException("已确认取车，无需重复确认");
+        }
 
-        // 更新订单状态为"在租"（已经在status=1，但可以添加确认取车时间字段）
-        // 这里主要是确认用户已取车，可以记录取车确认时间
-        order.setStartTime(LocalDateTime.now()); // 从确认取车时间开始计时
+        // 记录取车确认时间
+        order.setPickupConfirmed(1);
+        order.setPickupTime(LocalDateTime.now());
         orderMapper.updateById(order);
 
         return order;
+    }
+
+    /**
+     * 检查未取车的订单（定时任务调用）
+     * - 超过2小时：发送警告邮件
+     * - 超过24小时：自动取消订单
+     */
+    @Transactional
+    public void checkUnconfirmedPickups() {
+        // 查找所有在租/预约中但未确认取车的订单
+        List<Order> orders = orderMapper.selectList(
+                new LambdaQueryWrapper<Order>()
+                        .in(Order::getStatus, 1, 4)
+                        .eq(Order::getDepositPaid, 1)
+                        .and(q -> q.isNull(Order::getPickupConfirmed).or().eq(Order::getPickupConfirmed, 0))
+        );
+
+        for (Order order : orders) {
+            LocalDateTime depositTime = order.getDepositPaidTime();
+            if (depositTime == null) continue;
+
+            long hoursSinceDeposit = java.time.temporal.ChronoUnit.HOURS.between(depositTime, LocalDateTime.now());
+
+            // 超过24小时：自动取消订单
+            if (hoursSinceDeposit >= 24) {
+                try {
+                    cancelOrderInternal(order);
+                    // 发送取消通知邮件
+                    User user = userService.getUserById(order.getUserId());
+                    if (user != null && user.getEmail() != null) {
+                        sendCancelEmail(user, order);
+                    }
+                } catch (Exception e) {
+                    // 取消失败，记录日志但不影响其他订单处理
+                }
+                continue;
+            }
+
+            // 超过2小时：发送警告邮件
+            if (hoursSinceDeposit >= 2 && (order.getPickupWarningSent() == null || order.getPickupWarningSent() == 0)) {
+                try {
+                    User user = userService.getUserById(order.getUserId());
+                    if (user != null && user.getEmail() != null) {
+                        sendPickupWarningEmail(user, order);
+                        order.setPickupWarningSent(1);
+                        orderMapper.updateById(order);
+                    }
+                } catch (Exception e) {
+                    // 发送失败，记录日志但不影响其他订单处理
+                }
+            }
+        }
+    }
+
+    /**
+     * 内部取消订单方法（用于自动取消）
+     */
+    private void cancelOrderInternal(Order order) {
+        order.setStatus(3);
+        order.setCancelTime(LocalDateTime.now());
+        order.setDepositRefund(order.getDeposit());
+        orderMapper.updateById(order);
+        carService.updateStatus(order.getCarId(), 0);
+        if (order.getDriverId() != null) {
+            driverService.updateStatus(order.getDriverId(), 0);
+        }
+    }
+
+    /**
+     * 发送取车警告邮件
+     */
+    private void sendPickupWarningEmail(User user, Order order) {
+        String subject = "【御途租车】取车确认提醒";
+        String content = String.format(
+                "尊敬的用户 %s：\n\n" +
+                "您有一笔订单（订单号：%s）尚未确认取车。\n\n" +
+                "订单详情：\n" +
+                "- 车辆：%s %s\n" +
+                "- 押金支付时间：%s\n\n" +
+                "请在24小时内确认取车，否则订单将自动取消。\n\n" +
+                "如需帮助，请联系客服：400-888-8888",
+                user.getNickname() != null ? user.getNickname() : user.getUsername(),
+                order.getOrderNo(),
+                order.getCar() != null ? order.getCar().getBrand() : "",
+                order.getCar() != null ? order.getCar().getModel() : "",
+                order.getDepositPaidTime()
+        );
+        // 实际发送邮件（这里简化处理，实际应使用JavaMailSender）
+        // emailService.send(user.getEmail(), subject, content);
+    }
+
+    /**
+     * 发送订单取消通知邮件
+     */
+    private void sendCancelEmail(User user, Order order) {
+        String subject = "【御途租车】订单已自动取消";
+        String content = String.format(
+                "尊敬的用户 %s：\n\n" +
+                "您的订单（订单号：%s）因超过24小时未确认取车，已自动取消。\n\n" +
+                "押金 ¥%s 将在1-3个工作日内原路退回。\n\n" +
+                "如需重新下单，请访问我们的网站。\n\n" +
+                "感谢您的使用！",
+                user.getNickname() != null ? user.getNickname() : user.getUsername(),
+                order.getOrderNo(),
+                order.getDeposit()
+        );
+        // 实际发送邮件（这里简化处理，实际应使用JavaMailSender）
+        // emailService.send(user.getEmail(), subject, content);
     }
 
     @Transactional

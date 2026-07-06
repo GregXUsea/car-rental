@@ -120,6 +120,11 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e6a23c" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <span>尊敬的用户，您需要在 <strong>{{ getReturnCountdown(order.endTime) }}</strong> 后归还车辆，请及时归还</span>
               </div>
+              <!-- 取车确认提示 -->
+              <div class="pickup-warning" v-if="order.status === 1 && order.depositPaid === 1 && (!order.pickupConfirmed || order.pickupConfirmed === 0)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>⚠️ 请尽快确认取车！超过24小时未确认，订单将自动取消</span>
+              </div>
               <div class="info-item highlight">
                 <IconSvg name="money" :size="18" color="#f56c6c" />
                 <div class="info-content">
@@ -491,6 +496,11 @@ const handlePayRental = (order) => {
 }
 
 const handleReturn = async (order) => {
+  // 检查是否已确认取车
+  if (!order.pickupConfirmed || order.pickupConfirmed === 0) {
+    ElMessage.warning('请先确认取车后再归还车辆')
+    return
+  }
   // 检查租金是否已付
   if (!order.rentalPaid) {
     ElMessage.warning('请先支付租金后再归还车辆')
@@ -714,6 +724,10 @@ const handleEarlyReturn = async (order) => {
 /* 还车倒计时提示 */
 .return-reminder { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%); border: 1px solid #ffd43b; border-radius: 8px; margin-top: 12px; font-size: 13px; color: #666; }
 .return-reminder strong { color: #e6a23c; font-weight: 600; }
+
+/* 取车确认警告 */
+.pickup-warning { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: linear-gradient(135deg, #fff2f0 0%, #ffe4e1 100%); border: 1px solid #ffccc7; border-radius: 8px; margin-top: 12px; font-size: 13px; color: #f56c6c; font-weight: 500; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
 /* 评价 */
 .rating-section { margin-top: 16px; padding: 12px; background: #f9f9f9; border-radius: 8px; }

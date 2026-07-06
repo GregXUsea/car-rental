@@ -34,6 +34,9 @@ public class Order {
     private LocalDateTime depositPaidTime;
     private LocalDateTime rentalPaidTime;
     private LocalDateTime cancelTime;
+    private Integer pickupConfirmed; // 0未确认 1已确认取车
+    private LocalDateTime pickupTime; // 确认取车时间
+    private Integer pickupWarningSent; // 0未发送 1已发送2h警告
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
