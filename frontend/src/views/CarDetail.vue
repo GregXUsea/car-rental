@@ -463,17 +463,15 @@ const navigateToCar = (id) => {
 
 // 返回：如果来自AI助手，直接回AI；否则正常回退
 const goBack = () => {
-  const fromAI = sessionStorage.getItem('ai_last_conv_id')
-  if (fromAI) {
-    // 来自AI助手，直接跳转（不走back，避免多次切换要多次返回）
-    router.push('/ai-assistant')
+  // 检查来源页面（首页或AI助手）
+  const fromPage = sessionStorage.getItem('car_detail_from')
+  if (fromPage) {
+    sessionStorage.removeItem('car_detail_from')
+    router.push(fromPage)
     return
   }
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
+  // 默认回首页
+  router.push('/')
 }
 
 // 监听路由参数变化，重新加载车辆数据（Vue Router 复用组件实例）

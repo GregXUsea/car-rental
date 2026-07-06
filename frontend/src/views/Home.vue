@@ -358,10 +358,11 @@ onUnmounted(() => {
   if (sugHideTimer) clearTimeout(sugHideTimer)
 })
 
-// 离开首页时保存滚动位置
+// 离开首页时保存滚动位置和来源
 onBeforeRouteLeave((to, from, next) => {
   if (to.path.startsWith('/car/')) {
     sessionStorage.setItem('homeScrollTop', window.scrollY)
+    sessionStorage.setItem('car_detail_from', '/')
   }
   next()
 })

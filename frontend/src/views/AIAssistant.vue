@@ -328,6 +328,7 @@ const goToCarDetail = (carId) => {
   if (chatArea.value) {
     sessionStorage.setItem('ai_scroll_top', chatArea.value.scrollTop)
   }
+  sessionStorage.setItem('car_detail_from', '/ai-assistant')
   $router.push(`/car/${carId}`)
 }
 
