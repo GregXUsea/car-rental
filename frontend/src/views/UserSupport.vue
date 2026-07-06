@@ -54,7 +54,8 @@
 
       <div class="chat-input">
         <!-- 表情面板 -->
-        <div class="emoji-picker" v-if="showEmoji" @click.self="showEmoji = false">
+        <div class="emoji-picker" v-if="showEmoji" @click.self="showEmoji = false"
+             @mouseenter="onEmojiEnter" @mouseleave="onEmojiLeave">
           <div class="emoji-panel">
             <div class="emoji-category" v-for="(emojis, category) in emojiGroups" :key="category">
               <div class="category-title">{{ category }}</div>
@@ -102,7 +103,17 @@ const emojiGroups = {
 
 const insertEmoji = (emoji) => {
   inputMessage.value += emoji
-  showEmoji.value = false
+  // 点击后延迟隐藏
+  setTimeout(() => { showEmoji.value = false }, 200)
+}
+
+// 表情面板鼠标离开自动隐藏
+let emojiHideTimer = null
+const onEmojiEnter = () => {
+  if (emojiHideTimer) clearTimeout(emojiHideTimer)
+}
+const onEmojiLeave = () => {
+  emojiHideTimer = setTimeout(() => { showEmoji.value = false }, 200)
 }
 
 const formatTime = (t) => {

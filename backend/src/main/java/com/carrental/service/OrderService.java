@@ -186,6 +186,12 @@ public class OrderService {
         order.setRemark(dto.getRemark());
         order.setCreateTime(LocalDateTime.now());
 
+        // 设置门店信息
+        order.setPickupStoreId(dto.getPickupStoreId());
+        order.setReturnStoreId(dto.getReturnStoreId());
+        order.setPickupCity(dto.getPickupCity());
+        order.setReturnCity(dto.getReturnCity());
+
         // 记录取车时里程
         if (dto.getStartMileage() != null) {
             order.setStartMileage(dto.getStartMileage());

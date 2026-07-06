@@ -37,6 +37,10 @@ public class Order {
     private Integer pickupConfirmed; // 0未确认 1已确认取车
     private LocalDateTime pickupTime; // 确认取车时间
     private Integer pickupWarningSent; // 0未发送 1已发送2h警告
+    private Long pickupStoreId;     // 取车门店ID
+    private Long returnStoreId;     // 还车门店ID
+    private String pickupCity;      // 取车城市
+    private String returnCity;      // 还车城市
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -46,4 +50,8 @@ public class Order {
     private Driver driver;
     @TableField(exist = false)
     private String username;
+    @TableField(exist = false)
+    private Store pickupStore;      // 取车门店
+    @TableField(exist = false)
+    private Store returnStore;      // 还车门店
 }

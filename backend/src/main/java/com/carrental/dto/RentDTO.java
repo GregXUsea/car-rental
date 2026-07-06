@@ -16,4 +16,8 @@ public class RentDTO {
     private Long driverId;
     private String remark;
     private Integer startMileage;
+    private Long pickupStoreId;  // 取车门店ID
+    private Long returnStoreId;  // 还车门店ID
+    private String pickupCity;   // 取车城市
+    private String returnCity;   // 还车城市
 }

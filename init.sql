@@ -70,6 +70,10 @@ CREATE TABLE `orders` (
   `pickup_confirmed` TINYINT DEFAULT 0 COMMENT '是否确认取车 0未确认 1已确认',
   `pickup_time` DATETIME DEFAULT NULL COMMENT '确认取车时间',
   `pickup_warning_sent` TINYINT DEFAULT 0 COMMENT '是否已发送2h取车警告 0未发送 1已发送',
+  `pickup_store_id` BIGINT DEFAULT NULL COMMENT '取车门店ID',
+  `return_store_id` BIGINT DEFAULT NULL COMMENT '还车门店ID',
+  `pickup_city` VARCHAR(20) DEFAULT NULL COMMENT '取车城市',
+  `return_city` VARCHAR(20) DEFAULT NULL COMMENT '还车城市',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),
@@ -90,6 +94,40 @@ CREATE TABLE `maintenance_records` (
   PRIMARY KEY (`id`),
   KEY `idx_car_id` (`car_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 门店表（渝贵川区域）
+DROP TABLE IF EXISTS `stores`;
+CREATE TABLE `stores` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(50) NOT NULL COMMENT '门店名称',
+  `city` VARCHAR(20) NOT NULL COMMENT '城市',
+  `address` VARCHAR(200) NOT NULL COMMENT '详细地址',
+  `phone` VARCHAR(20) COMMENT '联系电话',
+  `longitude` DECIMAL(10,7) COMMENT '经度',
+  `latitude` DECIMAL(10,7) COMMENT '纬度',
+  `status` TINYINT DEFAULT 1 COMMENT '0关闭 1营业中 2休息',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_city` (`city`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 初始门店数据（渝贵川区域）
+INSERT INTO `stores` (`name`, `city`, `address`, `phone`, `status`) VALUES
+('渝北旗舰店', '重庆', '重庆市渝北区新南路168号', '023-67890001', 1),
+('解放碑店', '重庆', '重庆市渝中区解放碑步行街', '023-67890002', 1),
+('沙坪坝店', '重庆', '重庆市沙坪坝区三峡广场', '023-67890003', 1),
+('江北观音桥店', '重庆', '重庆市江北区观音桥步行街', '023-67890004', 1),
+('春熙路店', '成都', '成都市锦江区春熙路99号', '028-87890001', 1),
+('天府机场店', '成都', '成都市双流区天府国际机场', '028-87890002', 1),
+('高新店', '成都', '成都市高新区天府大道', '028-87890003', 1),
+('宽窄巷子店', '成都', '成都市青羊区宽窄巷子', '028-87890004', 1),
+('喷水池店', '贵阳', '贵阳市云岩区喷水池', '0851-87890001', 1),
+('观山湖店', '贵阳', '贵阳市观山湖区金融城', '0851-87890002', 1),
+('花果园店', '贵阳', '贵阳市南明区花果园', '0851-87890003', 1),
+('红花岗店', '遵义', '遵义市红花岗区老城', '0851-87890004', 1),
+('汇川店', '遵义', '遵义市汇川区南京路', '0851-87890005', 1),
+('涪城店', '绵阳', '绵阳市涪城区中心', '0816-87890001', 1),
+('科技城店', '绵阳', '绵阳市高新区绵兴东路', '0816-87890002', 1);
 
 -- 司机表
 DROP TABLE IF EXISTS `drivers`;

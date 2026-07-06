@@ -159,6 +159,25 @@
             {{ timeWarning.end }}
           </div>
         </el-form-item>
+        <el-form-item label="取车门店">
+          <el-select v-model="rentForm.pickupStoreId" placeholder="请选择取车门店" style="width: 100%;">
+            <el-option v-for="s in pickupStores" :key="s.id" :value="s.id">
+              <span>{{ s.name }}</span>
+              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="还车门店">
+          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店" style="width: 100%;">
+            <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
+              <span>{{ s.name }}</span>
+              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
+            </el-option>
+          </el-select>
+          <div v-if="rentForm.pickupStoreId && rentForm.returnStoreId && pickupStores.find(s => s.id === rentForm.pickupStoreId)?.city !== returnStores.find(s => s.id === rentForm.returnStoreId)?.city" class="city-transfer-hint">
+            ⚠️ 异城还车将产生调度费 ¥200
+          </div>
+        </el-form-item>
         <el-form-item label="选择司机">
           <el-select v-model="rentForm.driverId" placeholder="不选择司机" clearable style="width: 100%;">
             <el-option v-for="d in availableDrivers" :key="d.id" :value="d.id">
@@ -248,6 +267,25 @@
           <div v-if="timeWarning.end" class="time-warning">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             {{ timeWarning.end }}
+          </div>
+        </el-form-item>
+        <el-form-item label="取车门店">
+          <el-select v-model="rentForm.pickupStoreId" placeholder="请选择取车门店" style="width: 100%;">
+            <el-option v-for="s in pickupStores" :key="s.id" :value="s.id">
+              <span>{{ s.name }}</span>
+              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="还车门店">
+          <el-select v-model="rentForm.returnStoreId" placeholder="请选择还车门店" style="width: 100%;">
+            <el-option v-for="s in returnStores" :key="s.id" :value="s.id">
+              <span>{{ s.name }}</span>
+              <span style="float:right;color:#999;font-size:12px">{{ s.city }} · {{ s.address.substring(0, 15) }}...</span>
+            </el-option>
+          </el-select>
+          <div v-if="rentForm.pickupStoreId && rentForm.returnStoreId && pickupStores.find(s => s.id === rentForm.pickupStoreId)?.city !== returnStores.find(s => s.id === rentForm.returnStoreId)?.city" class="city-transfer-hint">
+            ⚠️ 异城还车将产生调度费 ¥200
           </div>
         </el-form-item>
         <el-form-item label="选择司机">
@@ -516,6 +554,45 @@ const loadDrivers = async () => {
   if (res.code === 200) availableDrivers.value = res.data
 }
 
+// ====== 门店相关 ======
+const cities = ref([])
+const stores = ref([])
+const selectedPickupCity = ref('')
+const selectedReturnCity = ref('')
+
+const loadCities = async () => {
+  const res = await api.get('/stores/cities')
+  if (res.code === 200) cities.value = res.data
+}
+
+const loadStores = async (city) => {
+  const params = city ? `?city=${city}` : ''
+  const res = await api.get(`/stores/list${params}`)
+  if (res.code === 200) stores.value = res.data
+}
+
+const onPickupCityChange = (city) => {
+  selectedPickupCity.value = city
+  rentForm.value.pickupStoreId = null
+  loadStores(city)
+}
+
+const onReturnCityChange = (city) => {
+  selectedReturnCity.value = city
+  rentForm.value.returnStoreId = null
+  loadStores(city)
+}
+
+const pickupStores = computed(() => {
+  if (!selectedPickupCity.value) return stores.value
+  return stores.value.filter(s => s.city === selectedPickupCity.value)
+})
+
+const returnStores = computed(() => {
+  if (!selectedReturnCity.value) return stores.value
+  return stores.value.filter(s => s.city === selectedReturnCity.value)
+})
+
 // ====== 已占用时间段 ======
 const loadOccupiedSlots = async () => {
   if (!car.value) return
@@ -761,15 +838,17 @@ const validateReserveTime = () => {
 
 const openRentDialog = () => {
   if (!isLoggedIn.value) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '' }
+  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '', pickupStoreId: null, returnStoreId: null }
   loadOccupiedSlots()
+  loadStores()
   showRentDialog.value = true
 }
 
 const openReserveDialog = () => {
   if (!isLoggedIn.value) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '' }
+  rentForm.value = { startTime: '', endTime: '', driverId: null, remark: '', pickupStoreId: null, returnStoreId: null }
   loadOccupiedSlots()
+  loadStores()
   showReserveDialog.value = true
 }
 
