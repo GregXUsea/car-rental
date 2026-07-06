@@ -341,24 +341,6 @@ onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
 })
 
-// 监听支付弹窗显示，生成二维码
-watch(showPayDialog, (val) => {
-  if (val && payMethod.value === 'wechat') {
-    nextTick(() => {
-      setTimeout(() => generateQRCode(), 200)
-    })
-  }
-})
-
-// 监听支付方式变化，重新生成二维码
-watch(payMethod, (val) => {
-  if (val === 'wechat' && showPayDialog.value) {
-    nextTick(() => {
-      setTimeout(() => generateQRCode(), 200)
-    })
-  }
-})
-
 const loadOrders = async () => {
   const url = activeTab.value === 'all' ? '/orders/all' : '/orders/my'
   const res = await api.get(url)
@@ -534,6 +516,24 @@ const openPayPage = () => {
   const payUrl = `/pay?code=${payCode.value}&amount=${payAmount.value}`
   window.open(payUrl, '_blank', 'width=400,height=600')
 }
+
+// 监听支付弹窗显示，生成二维码
+watch(showPayDialog, (val) => {
+  if (val && payMethod.value === 'wechat') {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 300)
+    })
+  }
+})
+
+// 监听支付方式变化，重新生成二维码
+watch(payMethod, (val) => {
+  if (val === 'wechat' && showPayDialog.value) {
+    nextTick(() => {
+      setTimeout(() => generateQRCode(), 300)
+    })
+  }
+})
 
 const processPayment = async () => {
   if (payMethod.value === 'wechat' && !payConfirmed.value) {
