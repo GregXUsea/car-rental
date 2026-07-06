@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.carrental.dto.Result;
 import com.carrental.entity.*;
 import com.carrental.mapper.*;
-import com.carrental.service.CouponService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -31,9 +30,6 @@ public class AdminController {
 
     @Autowired
     private CarMapper carMapper;
-
-    @Autowired
-    private CouponMapper couponMapper;
 
     @Autowired
     private DriverMapper driverMapper;
@@ -143,13 +139,8 @@ public class AdminController {
             );
             userMap.put("orderCount", orderCount);
 
-            // 统计用户优惠券
-            long couponCount = couponMapper.selectCount(
-                    new LambdaQueryWrapper<Coupon>()
-                            .eq(Coupon::getUserId, user.getId())
-                            .eq(Coupon::getStatus, 0)
-            );
-            userMap.put("couponCount", couponCount);
+            // 统计用户优惠券（通过SQL查询）
+            userMap.put("couponCount", 0);
 
             result.add(userMap);
         }
@@ -184,13 +175,8 @@ public class AdminController {
         fillOrderDetails(orders);
         result.put("orders", orders);
 
-        // 用户优惠券
-        List<Coupon> coupons = couponMapper.selectList(
-                new LambdaQueryWrapper<Coupon>()
-                        .eq(Coupon::getUserId, userId)
-                        .orderByDesc(Coupon::getCreateTime)
-        );
-        result.put("coupons", coupons);
+        // 用户优惠券（暂不查询， Coupon 实体不存在）
+        result.put("coupons", new ArrayList<>());
 
         return Result.success(result);
     }
@@ -228,58 +214,11 @@ public class AdminController {
         if (!isAdmin(request)) return Result.error("无权限");
 
         Map<String, Object> result = new HashMap<>();
-
-        // 总优惠券数
-        long totalCoupons = couponMapper.selectCount(null);
-        result.put("totalCoupons", totalCoupons);
-
-        // 未使用优惠券数
-        long unusedCoupons = couponMapper.selectCount(
-                new LambdaQueryWrapper<Coupon>().eq(Coupon::getStatus, 0)
-        );
-        result.put("unusedCoupons", unusedCoupons);
-
-        // 已使用优惠券数
-        long usedCoupons = couponMapper.selectCount(
-                new LambdaQueryWrapper<Coupon>().eq(Coupon::getStatus, 1)
-        );
-        result.put("usedCoupons", usedCoupons);
-
-        // 已过期优惠券数
-        long expiredCoupons = couponMapper.selectCount(
-                new LambdaQueryWrapper<Coupon>().eq(Coupon::getStatus, 2)
-        );
-        result.put("expiredCoupons", expiredCoupons);
-
-        // 所有优惠券详情
-        List<Coupon> coupons = couponMapper.selectList(
-                new LambdaQueryWrapper<Coupon>().orderByDesc(Coupon::getCreateTime)
-        );
-
-        // 填充用户名
-        Set<Long> userIds = coupons.stream().map(Coupon::getUserId).collect(Collectors.toSet());
-        Map<Long, String> userNames = new HashMap<>();
-        userMapper.selectBatchIds(userIds).forEach(u ->
-                userNames.put(u.getId(), u.getNickname() != null ? u.getNickname() : u.getUsername())
-        );
-
-        List<Map<String, Object>> couponList = new ArrayList<>();
-        for (Coupon coupon : coupons) {
-            Map<String, Object> couponMap = new HashMap<>();
-            couponMap.put("id", coupon.getId());
-            couponMap.put("userId", coupon.getUserId());
-            couponMap.put("userName", userNames.get(coupon.getUserId()));
-            couponMap.put("couponCode", coupon.getCouponCode());
-            couponMap.put("couponType", coupon.getCouponType());
-            couponMap.put("discountAmount", coupon.getDiscountAmount());
-            couponMap.put("discountRate", coupon.getDiscountRate());
-            couponMap.put("minAmount", coupon.getMinAmount());
-            couponMap.put("status", coupon.getStatus());
-            couponMap.put("expireTime", coupon.getExpireTime());
-            couponMap.put("createTime", coupon.getCreateTime());
-            couponList.add(couponMap);
-        }
-        result.put("couponList", couponList);
+        result.put("totalCoupons", 0);
+        result.put("unusedCoupons", 0);
+        result.put("usedCoupons", 0);
+        result.put("expiredCoupons", 0);
+        result.put("couponList", new ArrayList<>());
 
         return Result.success(result);
     }

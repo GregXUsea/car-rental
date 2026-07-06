@@ -15,9 +15,8 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        createUser("admin", "admin123", "管理员", "13800000000", "admin@carrental.com", 1);
-        createUser("zhangsan", "user123", "张三", "13800000001", "zhangsan@test.com", 0);
-        createUser("lisi", "user123", "李四", "13800000002", "lisi@test.com", 0);
+        // 管理员账号
+        createUser("jinhang", "123456", "管理员", "13800000000", "jinhang@carrental.com", 1);
     }
 
     private void createUser(String username, String password, String nickname, String phone, String email, int role) {
