@@ -133,6 +133,9 @@ onMounted(async () => {
     return
   }
   loadOrders()
+
+  // 每30秒自动刷新
+  setInterval(loadOrders, 30000)
 })
 </script>
 

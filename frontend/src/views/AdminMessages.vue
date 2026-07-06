@@ -186,6 +186,12 @@ onMounted(async () => {
   if (route.query.userId) {
     openConversation(Number(route.query.userId))
   }
+
+  // 每10秒刷新对话列表和未读数
+  setInterval(() => {
+    loadConversations()
+    loadUnreadCount()
+  }, 10000)
 })
 
 watch(() => route.query.userId, (newUserId) => {

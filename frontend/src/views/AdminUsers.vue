@@ -162,6 +162,9 @@ onMounted(async () => {
   if (route.query.userId) {
     viewUser(Number(route.query.userId))
   }
+
+  // 每30秒自动刷新
+  setInterval(loadUsers, 30000)
 })
 </script>
 

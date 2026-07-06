@@ -82,6 +82,12 @@
         </div>
         <div class="stat-card mini">
           <div class="stat-info">
+            <span class="stat-value">{{ dashboard.todayNewUsers || 0 }}</span>
+            <span class="stat-label">今日新增</span>
+          </div>
+        </div>
+        <div class="stat-card mini">
+          <div class="stat-info">
             <span class="stat-value">{{ dashboard.totalCars || 0 }}</span>
             <span class="stat-label">总车辆</span>
           </div>
@@ -91,6 +97,40 @@
             <span class="stat-value">{{ dashboard.availableCars || 0 }}</span>
             <span class="stat-label">可租车辆</span>
           </div>
+        </div>
+      </div>
+
+      <!-- 在租订单 -->
+      <div class="section-card" v-if="dashboard.activeOrders && dashboard.activeOrders.length > 0">
+        <div class="section-header">
+          <h3>在租订单</h3>
+          <router-link to="/admin/orders" class="view-all">查看全部 →</router-link>
+        </div>
+        <div class="order-table">
+          <table>
+            <thead>
+              <tr>
+                <th>订单号</th>
+                <th>用户</th>
+                <th>车辆</th>
+                <th>开始时间</th>
+                <th>预计结束</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in dashboard.activeOrders" :key="order.id">
+                <td class="order-no">{{ order.orderNo }}</td>
+                <td>{{ order.username || '未知' }}</td>
+                <td>{{ order.car ? order.car.brand + ' ' + order.car.model : '未知' }}</td>
+                <td>{{ formatTime(order.startTime) }}</td>
+                <td>{{ formatTime(order.endTime) }}</td>
+                <td>
+                  <router-link :to="`/admin/messages?userId=${order.userId}`" class="action-btn">发消息</router-link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -146,6 +186,7 @@ const dashboard = ref({})
 const unreadCount = ref(0)
 
 const orderStatusText = (s) => ({ 0: '待支付', 1: '在租中', 2: '已完成', 3: '已取消', 4: '预约中' }[s] || '未知')
+const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 
 const loadDashboard = async () => {
   const res = await api.get('/admin/dashboard')
@@ -170,6 +211,12 @@ onMounted(async () => {
   }
   loadDashboard()
   loadUnreadCount()
+
+  // 每30秒自动刷新数据
+  setInterval(() => {
+    loadDashboard()
+    loadUnreadCount()
+  }, 30000)
 })
 </script>
 

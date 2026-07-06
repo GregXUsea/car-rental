@@ -107,6 +107,24 @@ public class AdminController {
         fillOrderDetails(recentOrders);
         data.put("recentOrders", recentOrders);
 
+        // 今日新增用户
+        long todayNewUsers = userMapper.selectCount(
+                new LambdaQueryWrapper<User>()
+                        .eq(User::getRole, 0)
+                        .between(User::getCreateTime, todayStart, todayEnd)
+        );
+        data.put("todayNewUsers", todayNewUsers);
+
+        // 在租订单详情
+        List<Order> activeOrders = orderMapper.selectList(
+                new LambdaQueryWrapper<Order>()
+                        .eq(Order::getStatus, 1)
+                        .orderByDesc(Order::getStartTime)
+                        .last("LIMIT 5")
+        );
+        fillOrderDetails(activeOrders);
+        data.put("activeOrders", activeOrders);
+
         return Result.success(data);
     }
 
