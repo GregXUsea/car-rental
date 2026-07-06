@@ -180,17 +180,13 @@
               {{ resetCountdown > 0 ? `${resetCountdown}s` : '重新发送' }}
             </button>
           </div>
-          <span class="code-ok" v-if="codeVerified === true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            验证码正确
-          </span>
           <span class="error-msg" v-if="codeVerified === false">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             {{ codeError }}
           </span>
         </div>
-        <button class="reset-btn" @click="handleVerifyCode" :disabled="codeVerified !== true">
-          下一步
+        <button class="reset-btn" @click="handleVerifyCode" :disabled="resetForm.code.length !== 6 || resetLoading">
+          {{ resetLoading ? '验证中...' : '下一步' }}
         </button>
       </div>
 
@@ -469,28 +465,28 @@ const handleSendCode = async () => {
   } catch { ElMessage.error('发送失败') }
 }
 
-// 验证码即时校验
+// 验证码校验
 const codeVerified = ref(null) // null=未验证, true=正确, false=错误
 const codeError = ref('')
-let verifyTimer = null
 
 const onCodeInput = () => {
   codeVerified.value = null
   codeError.value = ''
-  if (verifyTimer) clearTimeout(verifyTimer)
-  if (resetForm.code.length === 6) {
-    // 延迟500ms自动校验，避免频繁请求
-    verifyTimer = setTimeout(() => doVerifyCode(), 500)
-  }
 }
 
-const doVerifyCode = async () => {
+const handleVerifyCode = async () => {
+  if (resetForm.code.length !== 6) {
+    codeError.value = '请输入6位验证码'
+    codeVerified.value = false
+    return
+  }
   try {
     const res = await api.post('/auth/verify-code', {
       username: resetForm.username, email: resetForm.email, code: resetForm.code
     })
     if (res.code === 200) {
       codeVerified.value = true
+      resetStep.value = 3
     } else {
       codeVerified.value = false
       codeError.value = res.message || '验证码错误'
@@ -499,11 +495,6 @@ const doVerifyCode = async () => {
     codeVerified.value = false
     codeError.value = '校验失败，请重试'
   }
-}
-
-const handleVerifyCode = () => {
-  if (codeVerified.value !== true) return
-  resetStep.value = 3
 }
 
 const handleResetByCode = async () => {
