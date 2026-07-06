@@ -91,17 +91,6 @@
             <span class="stat-label">今日新增</span>
           </div>
         </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ dashboard.totalUsers || 0 }}</span>
-            <span class="stat-label">注册用户</span>
-          </div>
-        </div>
-        <div class="stat-card mini">
-          <div class="stat-info">
-            <span class="stat-value">{{ dashboard.todayNewUsers || 0 }}</span>
-            <span class="stat-label">今日新增</span>
-          </div>
-        </div>
         <div class="stat-card mini">
           <div class="stat-info">
             <span class="stat-value">{{ dashboard.totalCars || 0 }}</span>
