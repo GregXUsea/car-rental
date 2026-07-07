@@ -219,9 +219,9 @@ const examples = [
   { icon: '💼', text: '商务接待客户，需要高档黑色轿车，预算400-500元/天' },
   { icon: '💒', text: '下个月结婚，需要婚庆头车，红色或白色豪华车型' },
   { icon: '👨‍👩‍👧‍👦', text: '周末家庭出游三天，需要坐5人，预算400元/天' },
-  { icon: '💰', text: '租车多少钱一天？有什么优惠？' },
-  { icon: '📋', text: '租车需要什么流程？' },
-  { icon: '🔧', text: '车辆多久保养一次？' },
+  { icon: '🚗', text: '推荐几款适合日常通勤的经济型轿车' },
+  { icon: '🏔️', text: '想自驾去川西旅游，推荐什么SUV？' },
+  { icon: '💰', text: '有没有新能源车推荐？租金多少？' },
 ]
 
 // ====== 多会话管理 ======
@@ -459,7 +459,7 @@ const formatText = (text) => {
   // 将Markdown格式的链接转换为车辆卡片HTML
   // 格式: [文字](/car/1) -> 显示为可点击的卡片
   let formatted = text.replace(/\[([^\]]+)\]\(\/car\/(\d+)\)/g,
-    '<a href="/car/$2" class="car-card-link" target="_self"><span class="car-card-icon">🚗</span><span class="car-card-text">$1</span><span class="car-card-arrow">→</span></a>')
+    '<a href="/car/$2?from=/ai-assistant" class="car-card-link" onclick="sessionStorage.setItem(\'car_detail_from\',\'/ai-assistant\')"><span class="car-card-icon">🚗</span><span class="car-card-text">$1</span><span class="car-card-arrow">→</span></a>')
   // 将换行转换为<br>
   formatted = formatted.replace(/\n/g, '<br>')
   return formatted

@@ -483,6 +483,10 @@ const generateQRCode = async () => {
 }
 
 onMounted(async () => {
+  // 记录来源页面，用于返回时跳转
+  const from = route.query.from || route.meta.from || 'home'
+  sessionStorage.setItem('car_detail_from', from)
+
   const res = await api.get(`/cars/detail/${route.params.id}`)
   if (res.code === 200) car.value = res.data
   else { ElMessage.error(res.message); router.push('/') }
