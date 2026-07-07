@@ -72,7 +72,7 @@
     <main class="main">
       <!-- 轮播广告 -->
       <div class="home-carousel">
-        <el-carousel height="320px" :autoplay="true" interval="5000" arrow="hover" indicator-position="outside">
+        <el-carousel height="320px" :autoplay="true" :interval="5000" arrow="hover" indicator-position="outside">
           <el-carousel-item v-for="(ad, index) in homeAds" :key="index">
             <div class="home-ad-slide" :style="{ background: ad.bg }">
               <!-- 装饰元素 -->
