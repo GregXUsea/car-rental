@@ -110,48 +110,49 @@ public class AIService {
             result.put("reply", recommendResult.getSummary());
             result.put("recommendations", recommendResult.getRecommendations());
         } else {
-            // 其他所有问题（包括汽车知识、通用问答）：调用AI回答
+            // 判断是否为汽车相关问题（需要推荐车辆但不是明确租车）
+            boolean isCarRelated = isCarRelatedQuestion(userMessage);
+
             if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
                 result.put("type", "text");
                 result.put("reply", generateLocalReply(userMessage));
             } else {
                 try {
-                    // 获取可用车辆列表，传给AI
-                    List<Car> availableCars = carService.listRentable();
-                    StringBuilder carListStr = new StringBuilder();
-                    for (Car car : availableCars) {
-                        carListStr.append(String.format("ID:%d, %s %s, %s, %d座, ¥%.0f/天, %s\n",
-                                car.getId(), car.getBrand(), car.getModel(), car.getColor(),
-                                car.getSeats(), car.getPricePerDay(),
-                                car.getUsageType() != null ? car.getUsageType() : "通用"));
-                    }
+                    String systemPrompt;
+                    if (isCarRelated) {
+                        // 汽车相关问题：包含车辆列表
+                        List<Car> availableCars = carService.listRentable();
+                        StringBuilder carListStr = new StringBuilder();
+                        for (Car car : availableCars) {
+                            carListStr.append(String.format("ID:%d, %s %s, %s, %d座, ¥%.0f/天, %s\n",
+                                    car.getId(), car.getBrand(), car.getModel(), car.getColor(),
+                                    car.getSeats(), car.getPricePerDay(),
+                                    car.getUsageType() != null ? car.getUsageType() : "通用"));
+                        }
 
-                    String systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
-                            "## 可用车辆列表\n" + carListStr + "\n\n" +
-                            "## 回答规范\n" +
-                            "- 用中文回答，语言自然流畅\n" +
-                            "- 回答详细充实，给出具体建议\n" +
-                            "- 结构清晰，使用分点列表\n" +
-                            "- 记住对话上下文\n\n" +
-                            "## 车辆推荐规则\n" +
-                            "只有当用户明确询问与租车、车型、汽车品牌、出行、旅游、通勤等相关问题时，才推荐车辆。\n" +
-                            "如果用户问的是小说、电影、音乐、美食等非汽车相关问题，直接回答问题，不要推荐车辆。\n\n" +
-                            "## 输出格式\n" +
-                            "当推荐车辆时，必须以JSON格式返回：\n" +
-                            "{\"summary\":\"详细分析\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"理由\",\"matchScore\":\"95%\"}]}\n\n" +
-                            "## summary字段格式（必须遵守！）\n" +
-                            "summary必须包含以下内容，用换行符分隔：\n" +
-                            "1. 开头：根据您的需求分析...\n" +
-                            "2. 每款车的推荐理由（价格+场景+卖点）\n" +
-                            "3. 结尾：综合建议和注意事项\n\n" +
-                            "示例：\n" +
-                            "根据您的需求，我为您分析以下车型：\n" +
-                            "• 小米SU7：¥268/天，智能驾驶领先，适合商务通勤\n" +
-                            "• 小米YU7：¥358/天，大空间SUV，适合家庭出游\n" +
-                            "• 小米SU7 Ultra：¥498/天，性能旗舰，追求极致体验\n" +
-                            "综合建议：日常通勤选SU7性价比最高，家庭出游选YU7空间更大。\n\n" +
-                            "reason字段：简短15-25字，包含价格和核心卖点。\n\n" +
-                            "当回答其他问题时，直接返回文本回答。";
+                        systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
+                                "## 可用车辆列表\n" + carListStr + "\n\n" +
+                                "## 回答规范\n" +
+                                "- 用中文回答，语言自然流畅\n" +
+                                "- 回答详细充实，给出具体建议\n" +
+                                "- 结构清晰，使用分点列表\n" +
+                                "- 记住对话上下文\n\n" +
+                                "## 车辆推荐规则\n" +
+                                "当用户询问与车、出行、旅游、通勤、品牌、车型等相关问题时，推荐车辆。\n" +
+                                "推荐时以JSON格式返回：\n" +
+                                "{\"summary\":\"详细分析\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"理由\",\"matchScore\":\"95%\"}]}\n\n" +
+                                "当回答其他问题时，直接返回文本回答。";
+                    } else {
+                        // 非汽车问题：不包含车辆列表
+                        systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
+                                "## 回答规范\n" +
+                                "- 用中文回答，语言自然流畅\n" +
+                                "- 回答详细充实，给出具体建议\n" +
+                                "- 结构清晰，使用分点列表\n" +
+                                "- 记住对话上下文\n" +
+                                "- 支持任何话题的问答\n\n" +
+                                "直接回答用户的问题，不要推荐车辆。";
+                    }
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
                     System.out.println("AI Response: " + response);
@@ -237,6 +238,20 @@ public class AIService {
             if (lower.contains(keyword)) return true;
         }
 
+        return false;
+    }
+
+    /**
+     * 判断是否为汽车相关问题（可能需要推荐车辆）
+     */
+    private boolean isCarRelatedQuestion(String message) {
+        String lower = message.toLowerCase();
+        // 包含"车"相关关键词
+        String[] carKeywords = {"车", "汽车", "轿车", "suv", "mpv", "新能源", "电动",
+                "出行", "旅游", "通勤", "自驾", "代步", "接人", "接送"};
+        for (String keyword : carKeywords) {
+            if (lower.contains(keyword)) return true;
+        }
         return false;
     }
 
