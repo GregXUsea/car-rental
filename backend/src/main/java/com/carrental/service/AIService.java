@@ -88,8 +88,15 @@ public class AIService {
 
         try {
             String response = callOpenAI(systemPrompt, userPrompt);
-            return parseRecommendResult(response, availableCars);
+            System.out.println("推荐API响应: " + response);
+            AIRecommendResult result = parseRecommendResult(response, availableCars);
+            // 如果AI没有返回推荐结果，使用本地推荐
+            if (result.getRecommendations() == null || result.getRecommendations().isEmpty()) {
+                return localResult;
+            }
+            return result;
         } catch (Exception e) {
+            System.out.println("推荐API异常: " + e.getMessage());
             return localResult;
         }
     }
