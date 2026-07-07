@@ -219,8 +219,10 @@ onMounted(async () => {
 .back-link:hover { color: #667eea; }
 
 .admin-main { max-width: 1400px; margin: 0 auto; padding: 24px; }
-.page-header { margin-bottom: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { font-size: 20px; color: #333; }
+.add-btn { padding: 8px 20px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.add-btn:hover { opacity: 0.9; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .stat-card { background: #fff; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
