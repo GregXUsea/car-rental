@@ -60,12 +60,18 @@ public class MessageController {
      * 获取与某用户的对话
      */
     @GetMapping("/conversation/{userId}")
-    public Result<List<Message>> getConversation(@PathVariable Long userId, HttpServletRequest request) {
+    public Result<List<Message>> getConversation(@PathVariable String userId, HttpServletRequest request) {
         Long currentUserId = (Long) request.getAttribute("userId");
-        List<Message> messages = messageService.getConversation(currentUserId, userId);
+        Long targetUserId;
+        try {
+            targetUserId = Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            return Result.error("无效的用户ID");
+        }
+        List<Message> messages = messageService.getConversation(currentUserId, targetUserId);
 
         // 标记对方发来的消息为已读
-        messageService.markAllAsRead(userId, currentUserId);
+        messageService.markAllAsRead(targetUserId, currentUserId);
 
         return Result.success(messages);
     }
