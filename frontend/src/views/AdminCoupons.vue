@@ -34,6 +34,7 @@
     <main class="admin-main">
       <div class="page-header">
         <h2>优惠券管理</h2>
+        <button class="add-btn" @click="showGiveDialog = true">+ 发放优惠券</button>
       </div>
 
       <!-- 统计卡片 -->
@@ -96,6 +97,42 @@
           </tbody>
         </table>
       </div>
+
+      <!-- 发放优惠券弹窗 -->
+      <el-dialog v-model="showGiveDialog" title="发放优惠券" width="450px">
+        <el-form :model="giveForm" label-width="100px">
+          <el-form-item label="选择用户">
+            <el-select v-model="giveForm.userId" placeholder="请选择用户" filterable style="width: 100%;">
+              <el-option v-for="user in users" :key="user.id" :label="user.nickname || user.username" :value="user.id">
+                <span>{{ user.nickname || user.username }}</span>
+                <span style="float:right;color:#999;font-size:12px">ID:{{ user.id }}</span>
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="优惠券类型">
+            <el-radio-group v-model="giveForm.type">
+              <el-radio :label="1">立减券</el-radio>
+              <el-radio :label="2">折扣券</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="金额/折扣" v-if="giveForm.type === 1">
+            <el-input-number v-model="giveForm.amount" :min="1" :max="500" />
+            <span style="margin-left:8px;color:#999">元</span>
+          </el-form-item>
+          <el-form-item label="折扣率" v-if="giveForm.type === 2">
+            <el-input-number v-model="giveForm.rate" :min="1" :max="9" />
+            <span style="margin-left:8px;color:#999">折（如5表示5折）</span>
+          </el-form-item>
+          <el-form-item label="最低消费">
+            <el-input-number v-model="giveForm.minAmount" :min="0" :step="50" />
+            <span style="margin-left:8px;color:#999">元（0表示无门槛）</span>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="showGiveDialog = false">取消</el-button>
+          <el-button type="primary" @click="handleGiveCoupon">确认发放</el-button>
+        </template>
+      </el-dialog>
     </main>
   </div>
 </template>
@@ -103,10 +140,21 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import api from '../api'
 
 const router = useRouter()
 const stats = ref({})
+const users = ref([])
+const showGiveDialog = ref(false)
+
+const giveForm = ref({
+  userId: null,
+  type: 1,
+  amount: 100,
+  rate: 5,
+  minAmount: 0
+})
 
 const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 
@@ -117,6 +165,34 @@ const loadCoupons = async () => {
   }
 }
 
+const loadUsers = async () => {
+  const res = await api.get('/admin/users')
+  if (res.code === 200) {
+    users.value = res.data
+  }
+}
+
+const handleGiveCoupon = async () => {
+  if (!giveForm.value.userId) {
+    ElMessage.warning('请选择用户')
+    return
+  }
+  const res = await api.post('/admin/coupons/give', {
+    userId: giveForm.value.userId,
+    type: giveForm.value.type,
+    amount: giveForm.value.type === 1 ? giveForm.value.amount : 0,
+    rate: giveForm.value.type === 2 ? giveForm.value.rate / 10 : 1,
+    minAmount: giveForm.value.minAmount
+  })
+  if (res.code === 200) {
+    ElMessage.success('优惠券发放成功')
+    showGiveDialog.value = false
+    loadCoupons()
+  } else {
+    ElMessage.error(res.message)
+  }
+}
+
 onMounted(async () => {
   const userRes = await api.get('/user/info')
   if (userRes.code === 200 && userRes.data.role !== 1) {
@@ -124,6 +200,7 @@ onMounted(async () => {
     return
   }
   loadCoupons()
+  loadUsers()
 })
 </script>
 
