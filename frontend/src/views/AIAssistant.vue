@@ -458,13 +458,50 @@ const handleSend = () => {
 // 车辆数据缓存（包含图片、价格等完整信息）
 const carDataCache = ref({})
 
+// 全局点击事件处理，用于车辆卡片链接
+const handleCarCardClick = (event) => {
+  const card = event.target.closest('.inline-car-card')
+  if (card) {
+    event.preventDefault()
+    const carId = card.getAttribute('data-car-id')
+    if (carId) {
+      sessionStorage.setItem('car_detail_from', '/ai-assistant')
+      $router.push(`/car/${carId}`)
+    }
+  }
+}
+
+onMounted(async () => {
+  // 获取用户信息
+  try {
+    const userRes = await api.get('/user/info')
+    if (userRes.code === 200) {
+      currentUserId.value = userRes.data.id
+      if (userRes.data.avatar) {
+        userAvatar.value = userRes.data.avatar
+        localStorage.setItem('userAvatar', userRes.data.avatar)
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  loadConversations()
+  loadCarImages()
+
+  // 添加全局点击事件监听
+  document.addEventListener('click', handleCarCardClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleCarCardClick)
+})
+
 const formatText = (text) => {
   if (!text) return ''
   // 将Markdown格式的链接转换为车辆卡片HTML
   let formatted = text.replace(/\[([^\]]+)\]\(\/car\/(\d+)\)/g, (match, title, carId) => {
     const car = carDataCache.value[carId]
     if (car) {
-      return `<div class="inline-car-card" onclick="event.preventDefault();sessionStorage.setItem('car_detail_from','/ai-assistant');window.location.href='/car/${carId}'">
+      return `<div class="inline-car-card" data-car-id="${carId}">
         <img src="${car.image}" class="inline-car-img" onerror="this.style.display='none'" />
         <div class="inline-car-info">
           <div class="inline-car-name">${car.brand} ${car.model}</div>
@@ -479,7 +516,7 @@ const formatText = (text) => {
         </div>
       </div>`
     }
-    return `<a href="/car/${carId}" class="car-card-link" onclick="event.preventDefault();sessionStorage.setItem('car_detail_from','/ai-assistant');window.location.href='/car/${carId}'"><span class="car-card-icon">🚗</span><span class="car-card-text">${title}</span><span class="car-card-arrow">→</span></a>`
+    return `<a href="/car/${carId}" class="car-card-link" data-car-id="${carId}"><span class="car-card-icon">🚗</span><span class="car-card-text">${title}</span><span class="car-card-arrow">→</span></a>`
   })
   formatted = formatted.replace(/\n/g, '<br>')
   return formatted

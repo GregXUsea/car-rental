@@ -577,12 +577,10 @@ const goBack = () => {
   const fromPage = sessionStorage.getItem('car_detail_from')
   if (fromPage) {
     sessionStorage.removeItem('car_detail_from')
-    // 直接跳转到来源页面，替换当前历史
-    window.location.href = fromPage
+    router.replace(fromPage)
     return
   }
-  // 默认回首页
-  window.location.href = '/'
+  router.replace('/')
 }
 
 // 监听路由参数变化，重新加载车辆数据（Vue Router 复用组件实例）
