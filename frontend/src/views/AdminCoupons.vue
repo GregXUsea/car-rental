@@ -12,6 +12,7 @@
         </div>
         <nav class="admin-nav">
           <router-link to="/admin" class="nav-item">仪表盘</router-link>
+          <router-link to="/admin/cars" class="nav-item">车辆管理</router-link>
           <router-link to="/admin/orders" class="nav-item">订单管理</router-link>
           <router-link to="/admin/users" class="nav-item">用户管理</router-link>
           <router-link to="/admin/messages" class="nav-item">
