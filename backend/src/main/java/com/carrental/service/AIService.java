@@ -117,70 +117,31 @@ public class AIService {
             result.put("reply", recommendResult.getSummary());
             result.put("recommendations", recommendResult.getRecommendations());
         } else {
-            // 判断是否为汽车相关问题（需要推荐车辆但不是明确租车）
+            // 判断是否为汽车相关问题
             boolean isCarRelated = isCarRelatedQuestion(userMessage);
 
-            if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
+            // 汽车相关问题也走推荐流程
+            if (isCarRelated) {
+                AIRecommendResult recommendResult = recommendCars(userMessage);
+                result.put("type", "recommend");
+                result.put("reply", recommendResult.getSummary());
+                result.put("recommendations", recommendResult.getRecommendations());
+            } else if (apiKey == null || apiKey.equals("sk-your-api-key-here") || apiKey.isBlank()) {
                 result.put("type", "text");
                 result.put("reply", generateLocalReply(userMessage));
             } else {
                 try {
-                    String systemPrompt;
-                    if (isCarRelated) {
-                        // 汽车相关问题：包含车辆列表
-                        List<Car> availableCars = carService.listRentable();
-                        StringBuilder carListStr = new StringBuilder();
-                        for (Car car : availableCars) {
-                            carListStr.append(String.format("ID:%d, %s %s, %s, %d座, ¥%.0f/天, %s\n",
-                                    car.getId(), car.getBrand(), car.getModel(), car.getColor(),
-                                    car.getSeats(), car.getPricePerDay(),
-                                    car.getUsageType() != null ? car.getUsageType() : "通用"));
-                        }
-
-                        systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
-                                "## 可用车辆列表\n" + carListStr + "\n\n" +
-                                "## 回答规范\n" +
-                                "- 用中文回答，语言自然流畅\n" +
-                                "- 回答详细充实，给出具体建议\n" +
-                                "- 结构清晰，使用分点列表\n" +
-                                "- 记住对话上下文\n\n" +
-                                "## 车辆推荐规则\n" +
-                                "当用户询问与车、出行、旅游、通勤、品牌、车型等相关问题时，推荐车辆。\n" +
-                                "推荐时以JSON格式返回：\n" +
-                                "{\"summary\":\"详细分析\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"理由\",\"matchScore\":\"95%\"}]}\n\n" +
-                                "当回答其他问题时，直接返回文本回答。";
-                    } else {
-                        // 非汽车问题：不包含车辆列表
-                        systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
-                                "## 回答规范\n" +
-                                "- 用中文回答，语言自然流畅\n" +
-                                "- 回答详细充实，给出具体建议\n" +
-                                "- 结构清晰，使用分点列表\n" +
-                                "- 记住对话上下文\n" +
-                                "- 支持任何话题的问答\n\n" +
-                                "直接回答用户的问题，不要推荐车辆。";
-                    }
+                    // 非汽车问题：直接用AI回答
+                    String systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
+                            "## 回答规范\n" +
+                            "- 用中文回答，语言自然流畅\n" +
+                            "- 回答详细充实，给出具体建议\n" +
+                            "- 结构清晰，使用分点列表\n" +
+                            "- 记住对话上下文\n" +
+                            "- 支持任何话题的问答\n\n" +
+                            "直接回答用户的问题，不要推荐车辆。";
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
-                    System.out.println("AI Response: " + response);
-
-                    // 尝试解析为推荐结果
-                    try {
-                        String json = response.trim();
-                        if (json.startsWith("{")) {
-                            AIRecommendResult recommendResult = parseRecommendResult(json, carService.listRentable());
-                            if (recommendResult.getRecommendations() != null && !recommendResult.getRecommendations().isEmpty()) {
-                                result.put("type", "recommend");
-                                result.put("reply", recommendResult.getSummary());
-                                result.put("recommendations", recommendResult.getRecommendations());
-                                System.out.println("推荐结果: summary=" + recommendResult.getSummary() + ", 推荐数=" + recommendResult.getRecommendations().size());
-                                return result;
-                            }
-                        }
-                    } catch (Exception e) {
-                        System.out.println("解析失败: " + e.getMessage());
-                    }
-
                     result.put("type", "text");
                     result.put("reply", response);
                 } catch (Exception e) {
