@@ -282,6 +282,50 @@ public class AdminController {
     }
 
     /**
+     * 获取所有车辆（管理员用）
+     */
+    @GetMapping("/cars")
+    public Result<List<Car>> getAllCars(HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+        List<Car> cars = carMapper.selectList(
+                new LambdaQueryWrapper<Car>().orderByDesc(Car::getCreateTime)
+        );
+        return Result.success(cars);
+    }
+
+    /**
+     * 添加车辆（管理员用）
+     */
+    @PostMapping("/cars")
+    public Result<Car> addCar(@RequestBody Car car, HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+        car.setCreateTime(LocalDateTime.now());
+        carMapper.insert(car);
+        return Result.success(car);
+    }
+
+    /**
+     * 更新车辆（管理员用）
+     */
+    @PutMapping("/cars/{id}")
+    public Result<Car> updateCar(@PathVariable Long id, @RequestBody Car car, HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+        car.setId(id);
+        carMapper.updateById(car);
+        return Result.success(car);
+    }
+
+    /**
+     * 删除车辆（管理员用）
+     */
+    @DeleteMapping("/cars/{id}")
+    public Result<Void> deleteCar(@PathVariable Long id, HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+        carMapper.deleteById(id);
+        return Result.success(null);
+    }
+
+    /**
      * 填充订单的用户名和车辆信息
      */
     private void fillOrderDetails(List<Order> orders) {

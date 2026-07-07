@@ -12,6 +12,7 @@
         </div>
         <nav class="admin-nav">
           <router-link to="/admin" class="nav-item" :class="{ active: $route.path === '/admin' }">仪表盘</router-link>
+          <router-link to="/admin/cars" class="nav-item" :class="{ active: $route.path === '/admin/cars' }">车辆管理</router-link>
           <router-link to="/admin/orders" class="nav-item" :class="{ active: $route.path === '/admin/orders' }">订单管理</router-link>
           <router-link to="/admin/users" class="nav-item" :class="{ active: $route.path === '/admin/users' }">用户管理</router-link>
           <router-link to="/admin/messages" class="nav-item" :class="{ active: $route.path === '/admin/messages' }">
