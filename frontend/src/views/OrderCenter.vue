@@ -123,7 +123,7 @@
               <!-- 取车确认提示 -->
               <div class="pickup-warning" v-if="order.status === 1 && order.depositPaid === 1 && (!order.pickupConfirmed || order.pickupConfirmed === 0)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span>⚠️ 请尽快确认取车！超过24小时未确认，订单将自动取消</span>
+                <span>⚠️ 请尽快确认取车！超时未确认订单将自动取消（剩余 <strong>{{ getPickupCountdown(order.depositPaidTime) }}</strong>）</span>
               </div>
               <div class="info-item highlight">
                 <IconSvg name="money" :size="18" color="#f56c6c" />
@@ -328,16 +328,23 @@ const ratingForm = ref({ rating: 0, comment: '' })
 // 取消订单倒计时
 const cancelInfos = ref({}) // { orderId: { cancellable, remainSeconds, reason, alreadyCancelledToday } }
 let countdownTimer = null
+let pickupCountdownTimer = null
 
 onMounted(async () => {
   const userRes = await api.get('/user/info')
   if (userRes.code === 200) isAdmin.value = userRes.data.role === 1
   await loadOrders()
   startCountdownTimer()
+  // 启动取车倒计时刷新（每秒更新）
+  pickupCountdownTimer = setInterval(() => {
+    // 强制更新视图以刷新倒计时
+    orders.value = [...orders.value]
+  }, 1000)
 })
 
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
+  if (pickupCountdownTimer) clearInterval(pickupCountdownTimer)
 })
 
 const loadOrders = async () => {
@@ -734,6 +741,21 @@ const getReturnCountdown = (endTime) => {
   if (days > 0) return `${days}天${hours}小时`
   if (hours > 0) return `${hours}小时${minutes}分钟`
   return `${minutes}分钟`
+}
+
+// 取车确认倒计时（押金支付后24小时）
+const getPickupCountdown = (depositPaidTime) => {
+  if (!depositPaidTime) return '未知'
+  const paidTime = new Date(depositPaidTime)
+  const deadline = new Date(paidTime.getTime() + 24 * 60 * 60 * 1000) // 24小时后
+  const now = new Date()
+  const diff = deadline - now
+  if (diff <= 0) return '已超时'
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+  if (hours > 0) return `${hours}小时${minutes}分钟`
+  return `${minutes}分${seconds}秒`
 }
 
 // 确认取车
