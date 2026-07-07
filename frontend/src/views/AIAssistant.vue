@@ -464,7 +464,7 @@ const formatText = (text) => {
   let formatted = text.replace(/\[([^\]]+)\]\(\/car\/(\d+)\)/g, (match, title, carId) => {
     const car = carDataCache.value[carId]
     if (car) {
-      return `<div class="inline-car-card" onclick="window.location='/car/${carId}?from=/ai-assistant';sessionStorage.setItem('car_detail_from','/ai-assistant')">
+      return `<div class="inline-car-card" onclick="event.preventDefault();sessionStorage.setItem('car_detail_from','/ai-assistant');window.location.href='/car/${carId}'">
         <img src="${car.image}" class="inline-car-img" onerror="this.style.display='none'" />
         <div class="inline-car-info">
           <div class="inline-car-name">${car.brand} ${car.model}</div>
@@ -479,7 +479,7 @@ const formatText = (text) => {
         </div>
       </div>`
     }
-    return `<a href="/car/${carId}?from=/ai-assistant" class="car-card-link" onclick="sessionStorage.setItem('car_detail_from','/ai-assistant')"><span class="car-card-icon">🚗</span><span class="car-card-text">${title}</span><span class="car-card-arrow">→</span></a>`
+    return `<a href="/car/${carId}" class="car-card-link" onclick="event.preventDefault();sessionStorage.setItem('car_detail_from','/ai-assistant');window.location.href='/car/${carId}'"><span class="car-card-icon">🚗</span><span class="car-card-text">${title}</span><span class="car-card-arrow">→</span></a>`
   })
   formatted = formatted.replace(/\n/g, '<br>')
   return formatted
