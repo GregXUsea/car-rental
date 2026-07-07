@@ -136,10 +136,15 @@ public class MessageController {
      * 查询对方是否正在输入
      */
     @GetMapping("/typing-status/{targetUserId}")
-    public Result<Boolean> getTypingStatus(@PathVariable Long targetUserId) {
-        Long lastTime = typingUsers.get(targetUserId);
-        boolean isTyping = lastTime != null && (System.currentTimeMillis() - lastTime) < 3000;
-        return Result.success(isTyping);
+    public Result<Boolean> getTypingStatus(@PathVariable String targetUserId) {
+        try {
+            Long userId = Long.parseLong(targetUserId);
+            Long lastTime = typingUsers.get(userId);
+            boolean isTyping = lastTime != null && (System.currentTimeMillis() - lastTime) < 3000;
+            return Result.success(isTyping);
+        } catch (NumberFormatException e) {
+            return Result.success(false);
+        }
     }
 
     /**
@@ -156,9 +161,14 @@ public class MessageController {
      * 查询对方是否在线（30秒内有活跃）
      */
     @GetMapping("/online-status/{targetUserId}")
-    public Result<Boolean> getOnlineStatus(@PathVariable Long targetUserId) {
-        Long lastTime = onlineUsers.get(targetUserId);
-        boolean isOnline = lastTime != null && (System.currentTimeMillis() - lastTime) < 30000; // 30秒内活跃
-        return Result.success(isOnline);
+    public Result<Boolean> getOnlineStatus(@PathVariable String targetUserId) {
+        try {
+            Long userId = Long.parseLong(targetUserId);
+            Long lastTime = onlineUsers.get(userId);
+            boolean isOnline = lastTime != null && (System.currentTimeMillis() - lastTime) < 30000;
+            return Result.success(isOnline);
+        } catch (NumberFormatException e) {
+            return Result.success(false);
+        }
     }
 }
