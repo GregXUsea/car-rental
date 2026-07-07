@@ -89,8 +89,8 @@
               </div>
               <!-- AI回复 - 推荐结果 -->
               <div v-else class="ai-response">
-                <div class="ai-summary" v-if="msg.result?.summary">
-                  <p>{{ msg.result.summary }}</p>
+                <div class="ai-summary" v-if="msg.result?.recommendations?.length">
+                  <p>{{ msg.result.summary || '根据您的需求，为您推荐以下车型：' }}</p>
                 </div>
                 <div class="recommend-cards" v-if="msg.result?.recommendations?.length">
                   <div v-for="(item, idx) in msg.result.recommendations" :key="idx" class="recommend-card">
@@ -609,7 +609,8 @@ const handleImgError = (e) => {
 .user-text { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 12px 18px; border-radius: 16px 16px 4px 16px; font-size: 14px; line-height: 1.6; }
 
 .ai-response { background: #fff; border-radius: 16px 16px 16px 4px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.ai-summary p { color: #333; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+.ai-summary { padding: 14px 16px; background: linear-gradient(135deg, #f8f9ff, #f0f2ff); border-left: 3px solid #667eea; border-radius: 0 8px 8px 0; margin-bottom: 16px; }
+.ai-summary p { color: #333; font-size: 14px; line-height: 1.7; margin: 0; }
 
 /* 推荐卡片 */
 .recommend-cards { display: flex; flex-direction: column; gap: 16px; }
