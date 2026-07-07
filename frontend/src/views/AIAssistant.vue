@@ -455,32 +455,43 @@ const handleSend = () => {
   sendMessage(inputText.value)
 }
 
-// 车辆图片缓存
-const carImageCache = ref({})
+// 车辆数据缓存（包含图片、价格等完整信息）
+const carDataCache = ref({})
 
 const formatText = (text) => {
   if (!text) return ''
   // 将Markdown格式的链接转换为车辆卡片HTML
-  // 格式: [文字](/car/1) -> 显示为带图片的卡片
   let formatted = text.replace(/\[([^\]]+)\]\(\/car\/(\d+)\)/g, (match, title, carId) => {
-    const img = carImageCache.value[carId]
-    if (img) {
-      return `<a href="/car/${carId}?from=/ai-assistant" class="car-card-link-with-img" onclick="sessionStorage.setItem('car_detail_from','/ai-assistant')"><img src="${img}" class="car-card-img" /><div class="car-card-info"><span class="car-card-text">${title}</span><span class="car-card-arrow">查看详情 →</span></div></a>`
+    const car = carDataCache.value[carId]
+    if (car) {
+      return `<div class="inline-car-card" onclick="window.location='/car/${carId}?from=/ai-assistant';sessionStorage.setItem('car_detail_from','/ai-assistant')">
+        <img src="${car.image}" class="inline-car-img" onerror="this.style.display='none'" />
+        <div class="inline-car-info">
+          <div class="inline-car-name">${car.brand} ${car.model}</div>
+          <div class="inline-car-tags">
+            <span class="inline-tag">${car.category || '轿车'}</span>
+            <span class="inline-tag">${car.seats}座</span>
+            ${car.usageType?.includes('商务') ? '<span class="inline-tag business">商务</span>' : ''}
+            ${car.usageType?.includes('家庭') ? '<span class="inline-tag family">家庭</span>' : ''}
+          </div>
+          <div class="inline-car-price">¥${car.pricePerDay}/天</div>
+          <div class="inline-car-btn">查看详情 & 立即租车 →</div>
+        </div>
+      </div>`
     }
     return `<a href="/car/${carId}?from=/ai-assistant" class="car-card-link" onclick="sessionStorage.setItem('car_detail_from','/ai-assistant')"><span class="car-card-icon">🚗</span><span class="car-card-text">${title}</span><span class="car-card-arrow">→</span></a>`
   })
-  // 将换行转换为<br>
   formatted = formatted.replace(/\n/g, '<br>')
   return formatted
 }
 
-// 加载车辆图片缓存
+// 加载车辆数据缓存
 const loadCarImages = async () => {
   try {
     const res = await api.get('/cars/list')
     if (res.code === 200) {
       res.data.forEach(car => {
-        carImageCache.value[car.id] = car.image
+        carDataCache.value[car.id] = car
       })
     }
   } catch (e) {}
@@ -654,13 +665,18 @@ const handleImgError = (e) => {
 .ai-text .car-card-icon { font-size: 18px; }
 .ai-text .car-card-text { flex: 1; }
 .ai-text .car-card-arrow { font-size: 16px; opacity: 0.6; }
-.ai-text .car-card-link-with-img { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; background: linear-gradient(135deg, #f0f2ff, #e8eaff); border: 1px solid #d0d5ff; border-radius: 10px; color: #333; text-decoration: none; margin-top: 8px; transition: all 0.2s; max-width: 260px; }
-.ai-text .car-card-link-with-img:hover { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
-.ai-text .car-card-img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; }
-.ai-text .car-card-info { display: flex; flex-direction: column; gap: 2px; }
-.ai-text .car-card-info .car-card-text { font-size: 13px; font-weight: 500; color: inherit; }
-.ai-text .car-card-info .car-card-arrow { font-size: 11px; color: #667eea; }
-.ai-text .car-card-link-with-img:hover .car-card-arrow { color: #fff; }
+/* 内联车辆卡片样式 */
+.ai-text .inline-car-card { display: flex; align-items: center; gap: 12px; padding: 10px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; margin: 8px 0; cursor: pointer; transition: all 0.2s; }
+.ai-text .inline-car-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.2); }
+.ai-text .inline-car-img { width: 80px; height: 60px; object-fit: cover; border-radius: 6px; }
+.ai-text .inline-car-info { flex: 1; }
+.ai-text .inline-car-name { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
+.ai-text .inline-car-tags { display: flex; gap: 4px; margin-bottom: 4px; }
+.ai-text .inline-tag { font-size: 11px; padding: 2px 6px; background: #f0f2ff; color: #667eea; border-radius: 4px; }
+.ai-text .inline-tag.business { background: #e8f4fd; color: #1890ff; }
+.ai-text .inline-tag.family { background: #f6ffed; color: #52c41a; }
+.ai-text .inline-car-price { font-size: 14px; font-weight: 600; color: #f56c6c; }
+.ai-text .inline-car-btn { font-size: 11px; color: #667eea; margin-top: 4px; }
 
 /* 打字动画 */
 .typing-indicator { display: flex; gap: 4px; padding: 14px 18px; background: #f8f9fb; border-radius: 0 16px 16px 16px; }
