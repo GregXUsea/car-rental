@@ -484,8 +484,12 @@ const generateQRCode = async () => {
 
 onMounted(async () => {
   // 记录来源页面，用于返回时跳转
-  const from = route.query.from || route.meta.from || 'home'
-  sessionStorage.setItem('car_detail_from', from)
+  // 优先使用sessionStorage中已保存的来源（从AI界面点击时设置）
+  const existingFrom = sessionStorage.getItem('car_detail_from')
+  if (!existingFrom) {
+    const from = route.query.from || route.meta.from || '/'
+    sessionStorage.setItem('car_detail_from', from)
+  }
 
   const res = await api.get(`/cars/detail/${route.params.id}`)
   if (res.code === 200) car.value = res.data
