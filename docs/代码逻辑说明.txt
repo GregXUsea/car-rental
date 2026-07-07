@@ -1,0 +1,221 @@
+汽车租赁系统 - 代码逻辑说明
+
+用户操作（点击按钮 / 填写表单 / 页面加载）
+        │
+        ▼
+Vue 组件的事件处理函数（handleXxx / sendMessage / loadOrders）
+        │  │
+        │  │  功能：响应用户交互，协调整个流程
+        │  │
+        │  ├─ ① 验证登录状态（检查localStorage中的token）
+        │  │    └─ 未登录 → 提示"请先登录" → 跳转登录页
+        │  │
+        │  ├─ ② 获取用户输入的参数
+        │  │    └─ 表单数据（租车时间、司机选择）/ 路由参数（车辆ID）/ 搜索关键词
+        │  │
+        │  ├─ ③ 表单校验（检查时间范围、必填项）
+        │  │    └─ 格式不对 → 提示错误信息 → 终止流程
+        │  │
+        │  └─ ④ 显示加载状态（loading.value = true）
+        │
+        ▼
+调用 API 函数（api/index.js 中定义的函数）
+        │  │
+        │  │  功能：封装 HTTP 请求，返回 Promise
+        │  │
+        │  ├─ GET  → 查询数据（获取车辆列表、订单列表、用户信息）
+        │  ├─ POST → 新增数据（登录、注册、租车、支付）
+        │  ├─ PUT  → 修改数据（更新个人信息、修改密码）
+        │  └─ DELETE → 删除数据（取消订单、删除车辆）
+        │
+        ▼
+Axios 请求拦截器（api/index.js）
+        │  │
+        │  │  功能：在请求发送前自动处理
+        │  │
+        │  ├─ ① 从 localStorage 读取 Token
+        │  │    └─ const token = localStorage.getItem('token')
+        │  │
+        │  ├─ ② 将 Token 添加到请求头
+        │  │    └─ config.headers.Authorization = 'Bearer ' + token
+        │  │
+        │  └─ ③ 设置请求超时时间
+        │       └─ config.timeout = 10000（10秒）
+        │
+        ▼
+发送 HTTP 请求
+        │  │
+        │  │  功能：向服务器发送请求
+        │  │
+        │  ├─ 请求行：POST /api/orders/rent HTTP/1.1
+        │  ├─ 请求头：Authorization: Bearer eyJhbG...
+        │  └─ 请求体：{"carId": 1, "startTime": "2026-07-08", "endTime": "2026-07-15"}
+        │
+        ▼
+Vite 代理转发（vite.config.js）
+        │  │
+        │  │  功能：开发环境转发请求到后端
+        │  │
+        │  ├─ 匹配规则：/api 开头的请求
+        │  ├─ 转发目标：http://localhost:8080
+        │  └─ 实际请求：POST http://localhost:8080/api/orders/rent
+        │
+        ▼
+JWT 拦截器验证身份（JwtInterceptor.java）
+        │  │
+        │  │  功能：验证用户身份，获取用户信息
+        │  │
+        │  ├─ ① 从 Header 提取 Token
+        │  │    └─ String token = request.getHeader("Authorization")
+        │  │
+        │  ├─ ② 解析 Token 获取用户信息
+        │  │    └─ Long userId = jwtUtil.getUserId(token)
+        │  │
+        │  ├─ ③ 验证 Token 是否有效
+        │  │    ├─ 有效 → 继续处理
+        │  │    └─ 无效/过期 → 返回 401 错误
+        │  │
+        │  └─ ④ 将用户信息放入请求上下文
+        │       └─ request.setAttribute("userId", userId)
+        │
+        ▼
+Controller 接收请求（controller/*.java）
+        │  │
+        │  │  功能：接收请求，调用 Service
+        │  │
+        │  ├─ ① 解析请求参数
+        │  │    ├─ @PathVariable → 路径参数（/orders/{id}）
+        │  │    ├─ @RequestParam → 查询参数（?status=1）
+        │  │    └─ @RequestBody → 请求体（JSON 数据）
+        │  │
+        │  ├─ ② 获取用户身份
+        │  │    └─ Long userId = request.getAttribute("userId")
+        │  │
+        │  ├─ ③ 权限验证
+        │  │    └─ 判断用户角色是否有权限操作（isAdmin检查）
+        │  │
+        │  └─ ④ 调用 Service 层
+        │       └─ return orderService.createOrder(userId, dto)
+        │
+        ▼
+Service 处理业务逻辑（service/*.java）
+        │  │
+        │  │  功能：处理核心业务，协调多个 Mapper
+        │  │
+        │  ├─ ① 数据校验
+        │  │    ├─ 车辆是否存在？
+        │  │    ├─ 时间是否合法？
+        │  │    └─ 是否与其他订单冲突？
+        │  │
+        │  ├─ ② 业务规则计算
+        │  │    ├─ 租金计算（日租金 × 天数）
+        │  │    ├─ 司机费计算（150元/天）
+        │  │    ├─ 新用户优惠（5折最高减200）
+        │  │    └─ 押金退还计算
+        │  │
+        │  ├─ ③ 调用 Mapper 操作数据库
+        │  │    ├─ orderMapper.insert(order)
+        │  │    ├─ carMapper.updateStatus(carId, 1)
+        │  │    └─ driverMapper.updateStatus(driverId, 1)
+        │  │
+        │  ├─ ④ 事务管理（@Transactional）
+        │  │    └─ 确保订单创建、车辆状态更新、司机状态更新要么全部成功，要么全部回滚
+        │  │
+        │  └─ ⑤ 封装返回结果
+        │       └─ return Result.success(order)
+        │
+        ▼
+Mapper 操作数据库（mapper/*.java）
+        │  │
+        │  │  功能：执行 SQL 语句，与数据库交互
+        │  │
+        │  ├─ @Select → 查询数据
+        │  │    └─ SELECT * FROM orders WHERE user_id = #{userId}
+        │  │
+        │  ├─ @Insert → 插入数据
+        │  │    └─ INSERT INTO orders(user_id, car_id, start_time, end_time) VALUES(...)
+        │  │
+        │  ├─ @Update → 更新数据
+        │  │    └─ UPDATE cars SET status = 1 WHERE id = #{carId}
+        │  │
+        │  └─ @Delete → 删除数据
+        │       └─ DELETE FROM orders WHERE id = #{id}
+        │
+        ▼
+MySQL 数据库执行 SQL
+        │  │
+        │  │  功能：存储和检索数据
+        │  │
+        │  ├─ 执行 SQL 语句
+        │  ├─ 返回查询结果（ResultSet）
+        │  └─ 返回影响行数（int）
+        │
+        ▼
+结果逐层返回（Mapper → Service → Controller）
+        │  │
+        │  │  功能：将数据库结果封装为响应
+        │  │
+        │  ├─ Mapper 返回：实体对象 / 影响行数
+        │  ├─ Service 封装：Result.success(data)
+        │  └─ Controller 返回：ResponseEntity
+        │
+        ▼
+HTTP 响应（JSON 格式）
+        │  │
+        │  │  功能：返回统一格式的响应数据
+        │  │
+        │  ├─ 成功响应：
+        │  │    { "code": 200, "message": "success", "data": {...} }
+        │  │
+        │  └─ 失败响应：
+        │       { "code": 500, "message": "错误信息", "data": null }
+        │
+        ▼
+Axios 响应拦截器（api/index.js）
+        │  │
+        │  │  功能：统一处理后端响应
+        │  │
+        │  ├─ ① 判断响应状态码
+        │  │    ├─ 200 → 正常处理
+        │  │    ├─ 401 → Token 过期，跳转登录页
+        │  │    └─ 500 → 服务器错误
+        │  │
+        │  ├─ ② 判断业务状态码
+        │  │    ├─ code === 200 → 返回 data
+        │  │    └─ code !== 200 → 显示错误提示
+        │  │
+        │  └─ ③ 返回响应数据
+        │       └─ return response.data
+        │
+        ▼
+Vue 组件处理响应
+        │  │
+        │  │  功能：根据响应结果更新页面
+        │  │
+        │  ├─ ① 关闭加载状态（loading.value = false）
+        │  │
+        │  ├─ ② 判断响应结果
+        │  │    ├─ 成功 → 显示成功提示
+        │  │    │    └─ ElMessage.success('操作成功')
+        │  │    └─ 失败 → 显示错误提示
+        │  │         └─ ElMessage.error('操作失败')
+        │  │
+        │  ├─ ③ 更新页面数据
+        │  │    ├─ 更新订单列表（orders.value = res.data）
+        │  │    ├─ 更新车辆状态（car.status = 1）
+        │  │    └─ 刷新未读消息数（loadUnreadCount()）
+        │  │
+        │  └─ ④ 页面跳转（可选）
+        │       └─ router.push('/orders')
+        │
+        ▼
+页面更新（Vue 响应式系统）
+        │  │
+        │  │  功能：自动渲染最新数据
+        │  │
+        │  ├─ ref / reactive 数据变化
+        │  ├─ 自动触发 DOM 更新
+        │  └─ 用户看到最新结果
+        │
+        ▼
+      完成 ✓
