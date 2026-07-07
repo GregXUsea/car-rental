@@ -40,6 +40,67 @@ public class UserService {
         return Result.success(token);
     }
 
+    /**
+     * 管理员登录发送验证码
+     */
+    public Result<String> adminSendCode(String username, String email) {
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+        if (user == null) return Result.error("用户不存在");
+        if (user.getRole() != 1) return Result.error("非管理员账号");
+        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email)) {
+            return Result.error("邮箱不匹配");
+        }
+
+        // 生成6位验证码
+        String code = String.valueOf((int)(Math.random() * 900000 + 100000));
+
+        // 保存验证码
+        VerificationCode vc = new VerificationCode();
+        vc.setUserId(user.getId());
+        vc.setEmail(email);
+        vc.setCode(code);
+        vc.setExpireTime(LocalDateTime.now().plusMinutes(5));
+        verificationCodeMapper.insert(vc);
+
+        // 发送邮件
+        emailService.sendVerificationCode(email, code);
+
+        return Result.success("验证码已发送");
+    }
+
+    /**
+     * 管理员登录验证
+     */
+    public Result<String> adminLogin(String username, String password, String code) {
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+        if (user == null) return Result.error("用户不存在");
+        if (user.getRole() != 1) return Result.error("非管理员账号");
+        if (!checkPassword(password, user.getPassword())) {
+            return Result.error("密码错误");
+        }
+
+        // 验证验证码
+        VerificationCode vc = verificationCodeMapper.selectOne(
+                new LambdaQueryWrapper<VerificationCode>()
+                        .eq(VerificationCode::getUserId, user.getId())
+                        .eq(VerificationCode::getCode, code)
+                        .ge(VerificationCode::getExpireTime, LocalDateTime.now())
+                        .orderByDesc(VerificationCode::getCreateTime)
+                        .last("LIMIT 1"));
+
+        if (vc == null) {
+            return Result.error("验证码错误或已过期");
+        }
+
+        // 标记验证码已使用
+        verificationCodeMapper.deleteById(vc.getId());
+
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        return Result.success(token);
+    }
+
     public Result<String> checkUsername(String username) {
         if (username == null || username.length() < 2) {
             return Result.error("用户名至少需要2个字符");

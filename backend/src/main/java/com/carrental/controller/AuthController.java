@@ -18,6 +18,27 @@ public class AuthController {
         return userService.login(dto);
     }
 
+    /**
+     * 管理员登录发送验证码
+     */
+    @PostMapping("/admin-send-code")
+    public Result<String> adminSendCode(@RequestBody java.util.Map<String, String> body) {
+        String username = body.get("username");
+        String email = body.get("email");
+        return userService.adminSendCode(username, email);
+    }
+
+    /**
+     * 管理员登录验证
+     */
+    @PostMapping("/admin-login")
+    public Result<String> adminLogin(@RequestBody java.util.Map<String, String> body) {
+        String username = body.get("username");
+        String password = body.get("password");
+        String code = body.get("code");
+        return userService.adminLogin(username, password, code);
+    }
+
     @PostMapping("/register")
     public Result<String> register(@Valid @RequestBody RegisterDTO dto) {
         return userService.register(dto);
