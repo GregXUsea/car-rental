@@ -1,0 +1,242 @@
+================================================================
+        御途租车系统 - 功能清单（按PPT顺序）
+================================================================
+
+【PPT第1部分：用户模块】
+================================================================
+
+1.1 用户注册
+    前端：Login.vue → 注册表单
+    后端：POST /api/auth/register
+    功能：输入用户名、密码完成注册，用户名唯一性校验
+
+1.2 用户登录
+    前端：Login.vue → 登录表单
+    后端：POST /api/auth/login
+    功能：用户名密码登录，返回JWT Token
+
+1.3 找回密码
+    前端：Login.vue → 找回密码流程
+    后端：POST /api/auth/verify-identity → /auth/send-reset-code → /auth/reset-password-by-code
+    功能：用户名+邮箱验证 → 发送6位验证码 → 验证后重置密码
+
+1.4 个人信息管理
+    前端：UserProfile.vue
+    后端：GET /api/user/info → PUT /api/user/update
+    功能：查看/修改昵称、手机号、邮箱
+
+1.5 头像上传
+    前端：UserProfile.vue → 点击头像上传
+    后端：POST /api/user/avatar
+    功能：上传图片（支持jpg/png，5MB限制）
+
+1.6 新用户优惠
+    后端：OrderService.isNewUser()
+    功能：注册30天内且未下单，首单5折最高减200元
+
+【PPT第2部分：车辆模块】
+================================================================
+
+2.1 车辆展示
+    前端：Home.vue → 车辆列表
+    后端：GET /api/cars/list
+    功能：展示所有可租车辆（排除维护中），支持按用途筛选
+
+2.2 车辆搜索
+    前端：Home.vue → 搜索框
+    后端：GET /api/cars/search?keyword=xxx
+    功能：按品牌、型号关键词搜索
+
+2.3 车辆详情
+    前端：CarDetail.vue
+    后端：GET /api/cars/detail/{id}
+    功能：查看车辆详细信息（图片、价格、描述、状态）
+
+2.4 车辆左右切换
+    前端：CarDetail.vue → 切换按钮
+    功能：在车辆详情页左右切换浏览其他车辆
+
+【PPT第3部分：订单模块】
+================================================================
+
+3.1 立即租车
+    前端：CarDetail.vue → 立即租车弹窗
+    后端：POST /api/orders/rent (isReservation=false)
+    功能：选择时间、司机，计算费用，创建订单
+
+3.2 预约租车
+    前端：CarDetail.vue → 预约租车弹窗
+    后端：POST /api/orders/rent (isReservation=true)
+    功能：预约未来时间，最长20天，6小时周转缓冲
+
+3.3 订单支付
+    前端：OrderCenter.vue / CarDetail.vue → 支付弹窗
+    后端：POST /api/orders/pay-deposit/{id} → /pay-rental/{id}
+    功能：支付押金（订单生效）+ 支付租金（可选）
+
+3.4 车辆归还
+    前端：OrderCenter.vue → 归还车辆 / 提前归还
+    后端：POST /api/orders/return/{id} → /early-return/{id}
+    功能：正常还车（退差额）/ 提前还车（租金不退，押金退）
+
+3.5 取消订单
+    前端：OrderCenter.vue → 取消按钮
+    后端：POST /api/orders/cancel/{id}
+    功能：时间窗口限制（租车1小时/预约2小时），每天最多1次
+
+3.6 订单评价
+    前端：OrderCenter.vue → 评分+评论
+    后端：POST /api/orders/rate/{id}
+    功能：1-5星评分 + 文字评价
+
+3.7 确认取车
+    前端：OrderCenter.vue → 确认取车按钮
+    后端：POST /api/orders/confirm-pickup/{id}
+    功能：支付押金后需确认取车，24小时未确认自动取消
+
+【PPT第4部分：AI智能选车】
+================================================================
+
+4.1 自然语言选车
+    前端：AIAssistant.vue → 输入框
+    后端：POST /api/ai/chat
+    功能：输入自然语言需求，AI推荐最匹配的车型
+
+4.2 推荐结果展示
+    前端：AIAssistant.vue → 推荐卡片
+    功能：显示车辆图片、价格、匹配度、推荐理由
+
+4.3 多轮对话
+    前端：AIAssistant.vue → 历史记录
+    功能：支持上下文记忆，用户独立存储
+
+4.4 AI辅助回复（管理员）
+    前端：AdminMessages.vue → AI推荐按钮
+    功能：管理员回复时，AI自动生成推荐回复
+
+【PPT第5部分：客服中心】
+================================================================
+
+5.1 实时聊天
+    前端：UserSupport.vue（用户端）/ AdminMessages.vue（管理端）
+    后端：POST /api/messages/send → GET /api/messages/conversation/{userId}
+    功能：用户与管理员实时聊天
+
+5.2 表情包支持
+    前端：UserSupport.vue / AdminMessages.vue → 表情按钮
+    功能：5组表情包（常用、汽车、表情、手势、物品）
+
+5.3 已读/未读状态
+    后端：GET /api/messages/unread
+    功能：消息已读标记，未读消息红点提醒
+
+5.4 正在输入提示
+    后端：POST /api/messages/typing → GET /api/messages/typing-status/{id}
+    功能：实时显示对方是否正在输入
+
+5.5 在线状态检测
+    后端：POST /api/messages/heartbeat → GET /api/messages/online-status/{id}
+    功能：心跳机制，30秒内有活跃视为在线
+
+【PPT第6部分：管理员后台】
+================================================================
+
+6.1 仪表盘
+    前端：AdminDashboard.vue
+    后端：GET /api/admin/dashboard
+    功能：今日订单、在租车辆、待处理订单、总收入、用户数、车辆数
+
+6.2 车辆管理
+    前端：AdminCars.vue
+    后端：GET/POST/PUT/DELETE /api/admin/cars
+    功能：查看所有车辆，添加/编辑/删除车辆
+
+6.3 订单管理
+    前端：AdminOrders.vue
+    后端：GET /api/admin/orders
+    功能：查看所有订单，按状态筛选，给用户发消息
+
+6.4 用户管理
+    前端：AdminUsers.vue
+    后端：GET /api/admin/users → /users/{userId}
+    功能：查看用户列表，用户详情（订单、优惠券）
+
+6.5 消息中心
+    前端：AdminMessages.vue
+    后端：GET /api/messages/conversations
+    功能：管理员与用户实时聊天，AI辅助回复
+
+6.6 优惠券管理
+    前端：AdminCoupons.vue
+    后端：GET /api/admin/coupons → /coupons/give
+    功能：查看优惠券统计，发放优惠券
+
+6.7 订单评价汇总
+    前端：AdminReviews.vue
+    后端：GET /api/admin/reviews
+    功能：评分分布、平均评分、评价详情
+
+6.8 维护看板
+    前端：MaintenanceDashboard.vue
+    后端：GET /api/ai/maintenance/all
+    功能：AI预测车辆维护风险，维护记录查看
+
+【PPT第7部分：支付系统】
+================================================================
+
+7.1 微信支付（模拟）
+    前端：支付弹窗 → 微信支付选项
+    后端：POST /api/payment/confirm → GET /api/payment/status/{code}
+    功能：生成二维码，手机扫描确认，实时状态同步
+
+7.2 银行卡支付（模拟）
+    前端：支付弹窗 → 银行卡选项
+    功能：输入卡号模拟支付
+
+【PPT第8部分：系统特色】
+================================================================
+
+8.1 AI智能选车
+    功能：自然语言理解 + 大模型推荐 + 车辆卡片展示
+
+8.2 实时客服系统
+    功能：聊天 + 表情 + 已读未读 + 在线状态 + AI辅助
+
+8.3 模拟支付流程
+    功能：微信扫码 + 验证码确认 + 实时状态同步
+
+8.4 用户独立存储
+    功能：AI历史记录、聊天记录按用户独立存储
+
+8.5 管理员在线状态
+    功能：心跳机制 + 30秒活跃判断
+
+8.6 取车确认机制
+    功能：支付押金后需确认取车，24小时未确认自动取消
+
+8.7 新用户优惠
+    功能：注册30天内首单5折，最高减200元
+
+8.8 车辆切换浏览
+    功能：车辆详情页左右切换，一次返回原位
+
+【测试清单】
+================================================================
+
+□ 注册账号（用户名唯一性、密码强度）
+□ 登录/登出
+□ 找回密码（验证码发送、验证、重置）
+□ 修改个人信息、上传头像
+□ 浏览车辆列表、搜索、筛选
+□ 查看车辆详情
+□ 立即租车（选时间、司机、支付押金）
+□ 预约租车（选未来时间）
+□ 订单支付（微信/银行卡）
+□ 确认取车
+□ 车辆归还（正常/提前）
+□ 取消订单
+□ 订单评价
+□ AI智能选车（自然语言输入）
+□ 客服中心聊天（表情、已读、在线状态）
+□ 管理员后台（仪表盘、车辆管理、订单管理、用户管理、消息中心、优惠券、评价汇总）
+□ 管理员登录验证码
