@@ -151,6 +151,7 @@ public class AIService {
                             "当回答其他问题时，直接返回文本回答。";
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
+                    System.out.println("AI Response: " + response);
 
                     // 尝试解析为推荐结果
                     try {
@@ -161,11 +162,12 @@ public class AIService {
                                 result.put("type", "recommend");
                                 result.put("reply", recommendResult.getSummary());
                                 result.put("recommendations", recommendResult.getRecommendations());
+                                System.out.println("推荐结果: summary=" + recommendResult.getSummary() + ", 推荐数=" + recommendResult.getRecommendations().size());
                                 return result;
                             }
                         }
                     } catch (Exception e) {
-                        // 解析失败，返回文本
+                        System.out.println("解析失败: " + e.getMessage());
                     }
 
                     result.put("type", "text");
