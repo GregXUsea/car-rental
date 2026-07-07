@@ -456,7 +456,12 @@ const handleSend = () => {
 
 const formatText = (text) => {
   if (!text) return ''
-  return text.replace(/\n/g, '<br>')
+  // 将Markdown格式的链接转换为HTML链接
+  // 格式: [文字](/car/1) -> <a href="/car/1" class="car-link">文字</a>
+  let formatted = text.replace(/\[([^\]]+)\]\(\/car\/(\d+)\)/g, '<a href="/car/$2" class="car-link" target="_self">$1</a>')
+  // 将换行转换为<br>
+  formatted = formatted.replace(/\n/g, '<br>')
+  return formatted
 }
 
 const getBrandTheme = (brand) => {
@@ -622,6 +627,8 @@ const handleImgError = (e) => {
 .ai-text-response { max-width: 100%; }
 .ai-text { background: #f8f9fb; padding: 14px 18px; border-radius: 0 16px 16px 16px; font-size: 14px; line-height: 1.7; color: #333; word-break: break-word; }
 .ai-text strong { color: #667eea; }
+.ai-text .car-link { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; border-radius: 20px; font-size: 13px; font-weight: 500; margin-top: 8px; transition: all 0.2s; }
+.ai-text .car-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
 
 /* 打字动画 */
 .typing-indicator { display: flex; gap: 4px; padding: 14px 18px; background: #f8f9fb; border-radius: 0 16px 16px 16px; }
