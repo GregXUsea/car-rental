@@ -666,12 +666,12 @@ const handleImgError = (e) => {
 .ai-text .car-card-text { flex: 1; }
 .ai-text .car-card-arrow { font-size: 16px; opacity: 0.6; }
 /* 内联车辆卡片样式 */
-.ai-text .inline-car-card { display: flex; align-items: center; gap: 12px; padding: 10px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; margin: 8px 0; cursor: pointer; transition: all 0.2s; }
+.ai-text .inline-car-card { display: flex; align-items: center; gap: 12px; padding: 10px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; margin: 8px 0; cursor: pointer; transition: all 0.2s; max-width: 320px; }
 .ai-text .inline-car-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.2); }
-.ai-text .inline-car-img { width: 80px; height: 60px; object-fit: cover; border-radius: 6px; }
-.ai-text .inline-car-info { flex: 1; }
-.ai-text .inline-car-name { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
-.ai-text .inline-car-tags { display: flex; gap: 4px; margin-bottom: 4px; }
+.ai-text .inline-car-img { width: 100px; height: 70px; object-fit: cover; border-radius: 6px; }
+.ai-text .inline-car-info { flex: 1; min-width: 0; }
+.ai-text .inline-car-name { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-text .inline-car-tags { display: flex; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
 .ai-text .inline-tag { font-size: 11px; padding: 2px 6px; background: #f0f2ff; color: #667eea; border-radius: 4px; }
 .ai-text .inline-tag.business { background: #e8f4fd; color: #1890ff; }
 .ai-text .inline-tag.family { background: #f6ffed; color: #52c41a; }
