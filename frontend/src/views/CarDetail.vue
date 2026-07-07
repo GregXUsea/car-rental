@@ -572,17 +572,17 @@ const navigateToCar = (id) => {
   router.push({ name: 'CarDetail', params: { id } })
 }
 
-// 返回：如果来自AI助手，直接回AI；否则正常回退
+// 返回：根据来源页面返回
 const goBack = () => {
-  // 检查来源页面（首页或AI助手）
   const fromPage = sessionStorage.getItem('car_detail_from')
   if (fromPage) {
     sessionStorage.removeItem('car_detail_from')
-    router.push(fromPage)
+    // 直接跳转到来源页面，替换当前历史
+    window.location.href = fromPage
     return
   }
   // 默认回首页
-  router.push('/')
+  window.location.href = '/'
 }
 
 // 监听路由参数变化，重新加载车辆数据（Vue Router 复用组件实例）
