@@ -132,18 +132,33 @@ public class AIService {
                             "- 用中文回答，语言自然流畅\n" +
                             "- 回答详细充实，给出具体建议\n" +
                             "- 结构清晰，使用分点列表\n" +
-                            "- 记住对话上下文\n" +
-                            "- 即使问题与租车无关，也要友好回答\n\n" +
+                            "- 记住对话上下文\n\n" +
                             "## 车辆推荐规则\n" +
-                            "当用户询问与车、出行、旅游、通勤等相关问题时，必须推荐车辆。\n" +
-                            "从上面的可用车辆列表中选择合适的车辆推荐。\n\n" +
-                            "## 车辆链接格式（重要！）\n" +
-                            "推荐车辆时，必须在回答中添加可点击链接，格式严格如下：\n" +
-                            "[查看XX车型详情](/car/车辆ID)\n" +
-                            "例如：[查看宝马5系详情](/car/13)\n\n" +
-                            "注意：车辆ID必须是上面列表中的真实ID！";
+                            "只有当用户明确询问与租车、车型、汽车品牌、出行、旅游、通勤等相关问题时，才推荐车辆。\n" +
+                            "如果用户问的是小说、电影、音乐、美食等非汽车相关问题，直接回答问题，不要推荐车辆。\n\n" +
+                            "## 输出格式\n" +
+                            "当推荐车辆时，必须以JSON格式返回：\n" +
+                            "{\"summary\":\"推荐理由\",\"recommendations\":[{\"carId\":车辆ID,\"reason\":\"推荐理由\",\"matchScore\":\"95%\"}]}\n\n" +
+                            "当回答其他问题时，直接返回文本回答。";
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
+
+                    // 尝试解析为推荐结果
+                    try {
+                        String json = response.trim();
+                        if (json.startsWith("{")) {
+                            AIRecommendResult recommendResult = parseRecommendResult(json, carService.listRentable());
+                            if (recommendResult.getRecommendations() != null && !recommendResult.getRecommendations().isEmpty()) {
+                                result.put("type", "recommend");
+                                result.put("reply", recommendResult.getSummary());
+                                result.put("recommendations", recommendResult.getRecommendations());
+                                return result;
+                            }
+                        }
+                    } catch (Exception e) {
+                        // 解析失败，返回文本
+                    }
+
                     result.put("type", "text");
                     result.put("reply", response);
                 } catch (Exception e) {
