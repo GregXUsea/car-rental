@@ -173,13 +173,13 @@ public class AIService {
             for (String keyword : directRental) {
                 if (lower.contains(keyword)) return true;
             }
-            // "租" + 场景词
-            String[] sceneKeywords = {"商务", "婚庆", "婚礼", "家庭", "出游", "旅游", "通勤", "代步",
-                    "SUV", "轿车", "MPV", "新能源", "豪华", "经济", "便宜", "上班", "过年", "暑假",
-                    "周末", "节假日", "长途", "短途", "机场", "高铁"};
-            for (String scene : sceneKeywords) {
-                if (lower.contains(scene)) return true;
-            }
+        }
+
+        // 场景词（不需要"租"字）
+        String[] sceneKeywords = {"商务", "婚庆", "婚礼", "家庭", "出游", "通勤", "代步",
+                "豪华", "经济", "上班", "周末", "节假日", "长途", "短途", "机场"};
+        for (String scene : sceneKeywords) {
+            if (lower.contains(scene)) return true;
         }
 
         // 带"车"字的推荐请求
