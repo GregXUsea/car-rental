@@ -272,13 +272,56 @@ public class AdminController {
         if (!isAdmin(request)) return Result.error("无权限");
 
         Map<String, Object> result = new HashMap<>();
-        result.put("totalCoupons", 0);
-        result.put("unusedCoupons", 0);
-        result.put("usedCoupons", 0);
-        result.put("expiredCoupons", 0);
-        result.put("couponList", new ArrayList<>());
+
+        // 获取所有优惠券
+        List<Coupon> coupons = couponMapper.selectList(
+                new LambdaQueryWrapper<Coupon>().orderByDesc(Coupon::getCreateTime)
+        );
+
+        // 统计
+        long totalCoupons = coupons.size();
+        long unusedCoupons = coupons.stream().filter(c -> c.getStatus() == 0).count();
+        long usedCoupons = coupons.stream().filter(c -> c.getStatus() == 1).count();
+        long expiredCoupons = coupons.stream().filter(c -> c.getStatus() == 2).count();
+
+        result.put("totalCoupons", totalCoupons);
+        result.put("unusedCoupons", unusedCoupons);
+        result.put("usedCoupons", usedCoupons);
+        result.put("expiredCoupons", expiredCoupons);
+        result.put("couponList", coupons);
 
         return Result.success(result);
+    }
+
+    /**
+     * 发放优惠券给用户
+     */
+    @PostMapping("/coupons/give")
+    public Result<Coupon> giveCoupon(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        if (!isAdmin(request)) return Result.error("无权限");
+
+        Long userId = Long.valueOf(body.get("userId").toString());
+        Integer type = Integer.valueOf(body.get("type").toString());
+        BigDecimal amount = new BigDecimal(body.get("amount").toString());
+        BigDecimal rate = body.get("rate") != null ? new BigDecimal(body.get("rate").toString()) : BigDecimal.ONE;
+        BigDecimal minAmount = body.get("minAmount") != null ? new BigDecimal(body.get("minAmount").toString()) : BigDecimal.ZERO;
+
+        Coupon coupon = new Coupon();
+        coupon.setUserId(userId);
+        coupon.setCouponCode(generateCouponCode());
+        coupon.setCouponType(type);
+        coupon.setDiscountAmount(type == 1 ? amount : BigDecimal.ZERO);
+        coupon.setDiscountRate(type == 2 ? rate : BigDecimal.ONE);
+        coupon.setMinAmount(minAmount);
+        coupon.setStatus(0);
+        coupon.setExpireTime(LocalDateTime.now().plusDays(30));
+        couponMapper.insert(coupon);
+
+        return Result.success(coupon);
+    }
+
+    private String generateCouponCode() {
+        return "CP" + System.currentTimeMillis() + (int)(Math.random() * 1000);
     }
 
     /**
