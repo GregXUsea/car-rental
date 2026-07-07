@@ -654,12 +654,12 @@ const handleImgError = (e) => {
 .ai-text .car-card-icon { font-size: 18px; }
 .ai-text .car-card-text { flex: 1; }
 .ai-text .car-card-arrow { font-size: 16px; opacity: 0.6; }
-.ai-text .car-card-link-with-img { display: inline-flex; align-items: center; gap: 12px; padding: 8px 12px; background: linear-gradient(135deg, #f0f2ff, #e8eaff); border: 1px solid #d0d5ff; border-radius: 12px; color: #333; text-decoration: none; margin-top: 10px; transition: all 0.2s; max-width: 300px; }
+.ai-text .car-card-link-with-img { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; background: linear-gradient(135deg, #f0f2ff, #e8eaff); border: 1px solid #d0d5ff; border-radius: 10px; color: #333; text-decoration: none; margin-top: 8px; transition: all 0.2s; max-width: 260px; }
 .ai-text .car-card-link-with-img:hover { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
-.ai-text .car-card-img { width: 80px; height: 60px; object-fit: cover; border-radius: 8px; }
-.ai-text .car-card-info { display: flex; flex-direction: column; gap: 4px; }
-.ai-text .car-card-info .car-card-text { font-size: 14px; font-weight: 500; color: inherit; }
-.ai-text .car-card-info .car-card-arrow { font-size: 12px; color: #667eea; }
+.ai-text .car-card-img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; }
+.ai-text .car-card-info { display: flex; flex-direction: column; gap: 2px; }
+.ai-text .car-card-info .car-card-text { font-size: 13px; font-weight: 500; color: inherit; }
+.ai-text .car-card-info .car-card-arrow { font-size: 11px; color: #667eea; }
 .ai-text .car-card-link-with-img:hover .car-card-arrow { color: #fff; }
 
 /* 打字动画 */
