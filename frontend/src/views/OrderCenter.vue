@@ -123,7 +123,7 @@
               <!-- 取车确认提示 -->
               <div class="pickup-warning" v-if="order.status === 1 && order.depositPaid === 1 && (!order.pickupConfirmed || order.pickupConfirmed === 0)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f56c6c" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span>⚠️ 请尽快确认取车！超时未确认订单将自动取消（剩余 <strong>{{ getPickupCountdown(order.depositPaidTime) }}</strong>）</span>
+                <span>⚠️ 请尽快确认取车！取车时间后24小时内未确认订单将自动取消（剩余 <strong>{{ getPickupCountdown(order.startTime) }}</strong>）</span>
               </div>
               <div class="info-item highlight">
                 <IconSvg name="money" :size="18" color="#f56c6c" />
@@ -743,18 +743,18 @@ const getReturnCountdown = (endTime) => {
   return `${minutes}分钟`
 }
 
-// 取车确认倒计时（押金支付后24小时）
-const getPickupCountdown = (depositPaidTime) => {
-  if (!depositPaidTime) return '未知'
-  const paidTime = new Date(depositPaidTime)
-  const deadline = new Date(paidTime.getTime() + 24 * 60 * 60 * 1000) // 24小时后
+// 取车确认倒计时（取车开始时间后24小时内必须确认）
+const getPickupCountdown = (startTime) => {
+  if (!startTime) return '未知'
+  const start = new Date(startTime)
+  const deadline = new Date(start.getTime() + 24 * 60 * 60 * 1000) // 取车时间+24小时
   const now = new Date()
   const diff = deadline - now
-  if (diff <= 0) return '已超时'
+  if (diff <= 0) return '已超时，订单即将自动取消'
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
   const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-  if (hours > 0) return `${hours}小时${minutes}分钟`
+  if (hours > 0) return `${hours}小时${minutes}分钟${seconds}秒`
   return `${minutes}分${seconds}秒`
 }
 
