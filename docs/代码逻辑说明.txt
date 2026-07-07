@@ -1,221 +1,395 @@
-汽车租赁系统 - 代码逻辑说明
+================================================================
+        汽车租赁系统 - 代码逻辑说明
+================================================================
 
-用户操作（点击按钮 / 填写表单 / 页面加载）
-        │
-        ▼
-Vue 组件的事件处理函数（handleXxx / sendMessage / loadOrders）
-        │  │
-        │  │  功能：响应用户交互，协调整个流程
-        │  │
-        │  ├─ ① 验证登录状态（检查localStorage中的token）
-        │  │    └─ 未登录 → 提示"请先登录" → 跳转登录页
-        │  │
-        │  ├─ ② 获取用户输入的参数
-        │  │    └─ 表单数据（租车时间、司机选择）/ 路由参数（车辆ID）/ 搜索关键词
-        │  │
-        │  ├─ ③ 表单校验（检查时间范围、必填项）
-        │  │    └─ 格式不对 → 提示错误信息 → 终止流程
-        │  │
-        │  └─ ④ 显示加载状态（loading.value = true）
-        │
-        ▼
-调用 API 函数（api/index.js 中定义的函数）
-        │  │
-        │  │  功能：封装 HTTP 请求，返回 Promise
-        │  │
-        │  ├─ GET  → 查询数据（获取车辆列表、订单列表、用户信息）
-        │  ├─ POST → 新增数据（登录、注册、租车、支付）
-        │  ├─ PUT  → 修改数据（更新个人信息、修改密码）
-        │  └─ DELETE → 删除数据（取消订单、删除车辆）
-        │
-        ▼
-Axios 请求拦截器（api/index.js）
-        │  │
-        │  │  功能：在请求发送前自动处理
-        │  │
-        │  ├─ ① 从 localStorage 读取 Token
-        │  │    └─ const token = localStorage.getItem('token')
-        │  │
-        │  ├─ ② 将 Token 添加到请求头
-        │  │    └─ config.headers.Authorization = 'Bearer ' + token
-        │  │
-        │  └─ ③ 设置请求超时时间
-        │       └─ config.timeout = 10000（10秒）
-        │
-        ▼
-发送 HTTP 请求
-        │  │
-        │  │  功能：向服务器发送请求
-        │  │
-        │  ├─ 请求行：POST /api/orders/rent HTTP/1.1
-        │  ├─ 请求头：Authorization: Bearer eyJhbG...
-        │  └─ 请求体：{"carId": 1, "startTime": "2026-07-08", "endTime": "2026-07-15"}
-        │
-        ▼
-Vite 代理转发（vite.config.js）
-        │  │
-        │  │  功能：开发环境转发请求到后端
-        │  │
-        │  ├─ 匹配规则：/api 开头的请求
-        │  ├─ 转发目标：http://localhost:8080
-        │  └─ 实际请求：POST http://localhost:8080/api/orders/rent
-        │
-        ▼
-JWT 拦截器验证身份（JwtInterceptor.java）
-        │  │
-        │  │  功能：验证用户身份，获取用户信息
-        │  │
-        │  ├─ ① 从 Header 提取 Token
-        │  │    └─ String token = request.getHeader("Authorization")
-        │  │
-        │  ├─ ② 解析 Token 获取用户信息
-        │  │    └─ Long userId = jwtUtil.getUserId(token)
-        │  │
-        │  ├─ ③ 验证 Token 是否有效
-        │  │    ├─ 有效 → 继续处理
-        │  │    └─ 无效/过期 → 返回 401 错误
-        │  │
-        │  └─ ④ 将用户信息放入请求上下文
-        │       └─ request.setAttribute("userId", userId)
-        │
-        ▼
-Controller 接收请求（controller/*.java）
-        │  │
-        │  │  功能：接收请求，调用 Service
-        │  │
-        │  ├─ ① 解析请求参数
-        │  │    ├─ @PathVariable → 路径参数（/orders/{id}）
-        │  │    ├─ @RequestParam → 查询参数（?status=1）
-        │  │    └─ @RequestBody → 请求体（JSON 数据）
-        │  │
-        │  ├─ ② 获取用户身份
-        │  │    └─ Long userId = request.getAttribute("userId")
-        │  │
-        │  ├─ ③ 权限验证
-        │  │    └─ 判断用户角色是否有权限操作（isAdmin检查）
-        │  │
-        │  └─ ④ 调用 Service 层
-        │       └─ return orderService.createOrder(userId, dto)
-        │
-        ▼
-Service 处理业务逻辑（service/*.java）
-        │  │
-        │  │  功能：处理核心业务，协调多个 Mapper
-        │  │
-        │  ├─ ① 数据校验
-        │  │    ├─ 车辆是否存在？
-        │  │    ├─ 时间是否合法？
-        │  │    └─ 是否与其他订单冲突？
-        │  │
-        │  ├─ ② 业务规则计算
-        │  │    ├─ 租金计算（日租金 × 天数）
-        │  │    ├─ 司机费计算（150元/天）
-        │  │    ├─ 新用户优惠（5折最高减200）
-        │  │    └─ 押金退还计算
-        │  │
-        │  ├─ ③ 调用 Mapper 操作数据库
-        │  │    ├─ orderMapper.insert(order)
-        │  │    ├─ carMapper.updateStatus(carId, 1)
-        │  │    └─ driverMapper.updateStatus(driverId, 1)
-        │  │
-        │  ├─ ④ 事务管理（@Transactional）
-        │  │    └─ 确保订单创建、车辆状态更新、司机状态更新要么全部成功，要么全部回滚
-        │  │
-        │  └─ ⑤ 封装返回结果
-        │       └─ return Result.success(order)
-        │
-        ▼
-Mapper 操作数据库（mapper/*.java）
-        │  │
-        │  │  功能：执行 SQL 语句，与数据库交互
-        │  │
-        │  ├─ @Select → 查询数据
-        │  │    └─ SELECT * FROM orders WHERE user_id = #{userId}
-        │  │
-        │  ├─ @Insert → 插入数据
-        │  │    └─ INSERT INTO orders(user_id, car_id, start_time, end_time) VALUES(...)
-        │  │
-        │  ├─ @Update → 更新数据
-        │  │    └─ UPDATE cars SET status = 1 WHERE id = #{carId}
-        │  │
-        │  └─ @Delete → 删除数据
-        │       └─ DELETE FROM orders WHERE id = #{id}
-        │
-        ▼
-MySQL 数据库执行 SQL
-        │  │
-        │  │  功能：存储和检索数据
-        │  │
-        │  ├─ 执行 SQL 语句
-        │  ├─ 返回查询结果（ResultSet）
-        │  └─ 返回影响行数（int）
-        │
-        ▼
-结果逐层返回（Mapper → Service → Controller）
-        │  │
-        │  │  功能：将数据库结果封装为响应
-        │  │
-        │  ├─ Mapper 返回：实体对象 / 影响行数
-        │  ├─ Service 封装：Result.success(data)
-        │  └─ Controller 返回：ResponseEntity
-        │
-        ▼
-HTTP 响应（JSON 格式）
-        │  │
-        │  │  功能：返回统一格式的响应数据
-        │  │
-        │  ├─ 成功响应：
-        │  │    { "code": 200, "message": "success", "data": {...} }
-        │  │
-        │  └─ 失败响应：
-        │       { "code": 500, "message": "错误信息", "data": null }
-        │
-        ▼
-Axios 响应拦截器（api/index.js）
-        │  │
-        │  │  功能：统一处理后端响应
-        │  │
-        │  ├─ ① 判断响应状态码
-        │  │    ├─ 200 → 正常处理
-        │  │    ├─ 401 → Token 过期，跳转登录页
-        │  │    └─ 500 → 服务器错误
-        │  │
-        │  ├─ ② 判断业务状态码
-        │  │    ├─ code === 200 → 返回 data
-        │  │    └─ code !== 200 → 显示错误提示
-        │  │
-        │  └─ ③ 返回响应数据
-        │       └─ return response.data
-        │
-        ▼
-Vue 组件处理响应
-        │  │
-        │  │  功能：根据响应结果更新页面
-        │  │
-        │  ├─ ① 关闭加载状态（loading.value = false）
-        │  │
-        │  ├─ ② 判断响应结果
-        │  │    ├─ 成功 → 显示成功提示
-        │  │    │    └─ ElMessage.success('操作成功')
-        │  │    └─ 失败 → 显示错误提示
-        │  │         └─ ElMessage.error('操作失败')
-        │  │
-        │  ├─ ③ 更新页面数据
-        │  │    ├─ 更新订单列表（orders.value = res.data）
-        │  │    ├─ 更新车辆状态（car.status = 1）
-        │  │    └─ 刷新未读消息数（loadUnreadCount()）
-        │  │
-        │  └─ ④ 页面跳转（可选）
-        │       └─ router.push('/orders')
-        │
-        ▼
-页面更新（Vue 响应式系统）
-        │  │
-        │  │  功能：自动渲染最新数据
-        │  │
-        │  ├─ ref / reactive 数据变化
-        │  ├─ 自动触发 DOM 更新
-        │  └─ 用户看到最新结果
-        │
-        ▼
-      完成 ✓
+一、系统整体架构
+================================================================
+
+┌─────────────────────────────────────────────────────────────────┐
+│                        前端 (Vue3 + Element Plus)                │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │ 登录注册 │ │ 车辆展示 │ │ 订单管理 │ │ AI选车  │ │ 客服中心 │ │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ │
+│       └──────────┴──────────┴──────────┴──────────┴──────┘   │
+│                              │                                  │
+│                      Axios HTTP请求                            │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        后端 (SpringBoot)                         │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  │Controller│ │ Service │ │ Mapper  │ │   JWT   │ │ AI服务  │ │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ │
+│       └──────────┴──────────┴──────────┴──────────┴──────┘   │
+│                              │                                  │
+│                      MyBatis-Plus                              │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        MySQL 数据库                              │
+│  users | cars | orders | drivers | messages | coupons           │
+└─────────────────────────────────────────────────────────────────┘
+
+
+二、PPT功能模块与代码对应关系
+================================================================
+
+【PPT第1部分：用户模块】
+----------------------------------------------------------------
+
+功能1：用户注册
+对应代码：Login.vue → handleRegister()
+后端接口：POST /api/auth/register
+业务逻辑：UserService.register()
+  1. 检查用户名是否唯一
+  2. 密码BCrypt加密存储
+  3. 插入users表
+数据表：users
+
+功能2：用户登录
+对应代码：Login.vue → handleLogin()
+后端接口：POST /api/auth/login
+业务逻辑：UserService.login()
+  1. 查询用户是否存在
+  2. 验证密码（BCrypt）
+  3. 生成JWT Token返回
+数据表：users
+
+功能3：找回密码
+对应代码：Login.vue → handleVerifyIdentity() → handleSendCode() → handleResetByCode()
+后端接口：POST /api/auth/verify-identity → /auth/send-reset-code → /auth/reset-password-by-code
+业务逻辑：UserService.verifyIdentity() → sendResetCode() → resetPasswordByCode()
+  1. 验证用户名和邮箱是否匹配
+  2. 生成6位验证码发送到邮箱
+  3. 验证码有效期5分钟，60秒冷却
+  4. 验证通过后重置密码
+数据表：users, verification_codes
+
+功能4：个人信息管理
+对应代码：UserProfile.vue
+后端接口：GET /api/user/info → PUT /api/user/update
+业务逻辑：UserService.getUserById() → updateUser()
+数据表：users
+
+功能5：头像上传
+对应代码：UserProfile.vue → uploadAvatar()
+后端接口：POST /api/user/avatar
+业务逻辑：UserService.uploadAvatar()
+  1. 文件格式校验（jpg/png）
+  2. 大小限制（5MB）
+  3. 保存到服务器uploads目录
+  4. 更新users表avatar字段
+数据表：users
+
+
+【PPT第2部分：车辆模块】
+----------------------------------------------------------------
+
+功能1：车辆展示
+对应代码：Home.vue → loadCars()
+后端接口：GET /api/cars/list
+业务逻辑：CarService.listRentable()
+  1. 查询所有可租车辆（status != 3）
+  2. 按品牌优先级排序（小米 > 问界/零跑 > 其他）
+  3. 返回车辆列表
+数据表：cars
+
+功能2：车辆详情
+对应代码：CarDetail.vue
+后端接口：GET /api/cars/detail/{id}
+业务逻辑：CarService.getById()
+  1. 查询车辆详细信息
+  2. 关联查询维护记录
+数据表：cars, maintenance_records
+
+功能3：车辆筛选
+对应代码：Home.vue → filterUsage / keyword
+前端逻辑：computed属性filteredCars
+  1. 按用途筛选（商务/婚庆/家庭/通勤）
+  2. 按关键词搜索（品牌/型号）
+  3. 按状态筛选（只看可租）
+
+
+【PPT第3部分：订单模块】
+----------------------------------------------------------------
+
+功能1：立即租车
+对应代码：CarDetail.vue → handleRent()
+后端接口：POST /api/orders/rent (isReservation=false)
+业务逻辑：OrderService.createOrder()
+  1. 校验车辆状态
+  2. 校验时间范围（3天内开始，最长15天）
+  3. 检查时间冲突
+  4. 计算租金 = 日租金 × 天数
+  5. 可选司机费 = 150元/天
+  6. 新用户优惠（5折最高减200）
+  7. 创建订单，状态=0（待支付）
+数据表：orders, cars
+
+功能2：预约租车
+对应代码：CarDetail.vue → handleReserve()
+后端接口：POST /api/orders/rent (isReservation=true)
+业务逻辑：OrderService.createOrder()
+  1. 校验时间范围（可提前2个月，最长20天）
+  2. 检查6小时缓冲冲突
+  3. 创建订单，状态=4（预约中）
+数据表：orders
+
+功能3：订单支付
+对应代码：OrderCenter.vue / CarDetail.vue → processPayment()
+后端接口：POST /api/orders/pay-deposit/{id} → /pay-rental/{id}
+业务逻辑：OrderService.payDeposit() → payRental()
+  1. 支付押金：订单状态0→1，车辆状态→1（已租出）
+  2. 支付租金：标记rentalPaid=1
+  3. 司机状态更新
+数据表：orders, cars, drivers
+
+功能4：车辆归还
+对应代码：OrderCenter.vue → handleReturn() / handleEarlyReturn()
+后端接口：POST /api/orders/return/{id} → /early-return/{id}
+业务逻辑：OrderService.returnCar()
+  1. 校验订单状态=1（在租）
+  2. 计算实际租期和费用
+  3. 提前还车：租金不退，押金全额退还
+  4. 正常还车：退还差额
+  5. 更新车辆状态→0（空闲）
+  6. 更新车辆里程
+数据表：orders, cars
+
+功能5：订单评价
+对应代码：OrderCenter.vue → submitRating()
+后端接口：POST /api/orders/rate/{id}
+业务逻辑：OrderService.rateOrder()
+  1. 校验订单状态=2（已完成）
+  2. 评分1-5星
+  3. 保存评价内容
+数据表：orders
+
+功能6：取消订单
+对应代码：OrderCenter.vue → handleCancel() / handleCancelWithWarning()
+后端接口：POST /api/orders/cancel/{id}
+业务逻辑：OrderService.cancelOrder()
+  1. 待支付：随时可取消
+  2. 在租：支付押金后1小时内可取消
+  3. 预约：支付押金后2小时内可取消
+  4. 每天最多取消1次
+  5. 退还全部押金
+数据表：orders, cars
+
+
+【PPT第4部分：AI智能选车】
+----------------------------------------------------------------
+
+功能1：自然语言选车
+对应代码：AIAssistant.vue → sendMessage()
+后端接口：POST /api/ai/chat
+业务逻辑：AIService.chat()
+  1. 判断是否为租车需求（isRentalNeedQuestion）
+  2. 获取可用车辆列表
+  3. 调用DeepSeek大模型API
+  4. 解析返回JSON格式推荐结果
+  5. 返回推荐车辆卡片
+数据表：cars
+
+功能2：多轮对话记忆
+对应代码：AIAssistant.vue → buildApiHistory()
+前端逻辑：
+  1. 保存最近20条对话历史
+  2. 发送时带上历史上下文
+  3. AI根据上下文回答
+数据存储：localStorage（用户独立key）
+
+功能3：AI推荐结果展示
+对应代码：AIAssistant.vue → msg.result.recommendations
+前端逻辑：
+  1. 解析AI返回的JSON
+  2. 渲染推荐卡片（图片、价格、理由、匹配度）
+  3. 点击跳转到车辆详情
+
+
+【PPT第5部分：客服中心】
+----------------------------------------------------------------
+
+功能1：实时聊天
+对应代码：UserSupport.vue / AdminMessages.vue
+后端接口：POST /api/messages/send → GET /api/messages/conversation/{userId}
+业务逻辑：MessageService.sendMessage() → getConversation()
+  1. 存储消息到messages表
+  2. 轮询获取新消息（每3秒）
+  3. 标记已读/未读
+数据表：messages
+
+功能2：表情包支持
+对应代码：UserSupport.vue / AdminMessages.vue
+前端逻辑：
+  1. 内置表情包分组（常用、汽车、表情、手势、物品）
+  2. 点击插入到输入框
+
+功能3：在线状态检测
+对应代码：UserSupport.vue → startPolling()
+后端接口：POST /api/messages/heartbeat → GET /api/messages/online-status/{id}
+业务逻辑：MessageService
+  1. 心跳机制：每10秒发送心跳
+  2. 30秒内有活跃视为在线
+  3. 存储在ConcurrentHashMap
+
+功能4：AI辅助回复（管理员）
+对应代码：AdminMessages.vue → generateAiReply()
+后端接口：POST /api/ai/chat
+业务逻辑：
+  1. 分析用户最后一条消息
+  2. 调用AI生成推荐回复
+  3. 管理员可编辑后发送
+
+
+【PPT第6部分：管理员后台】
+----------------------------------------------------------------
+
+功能1：仪表盘
+对应代码：AdminDashboard.vue
+后端接口：GET /api/admin/dashboard
+业务逻辑：AdminController.getDashboard()
+  1. 统计今日订单数
+  2. 统计在租车辆数
+  3. 统计待处理订单数
+  4. 计算总收入
+  5. 统计用户数、车辆数
+  6. 获取最近订单列表
+数据表：orders, cars, users
+
+功能2：订单管理
+对应代码：AdminOrders.vue
+后端接口：GET /api/admin/orders
+业务逻辑：AdminController.getOrders()
+  1. 查询所有订单
+  2. 关联用户和车辆信息
+  3. 支持按状态筛选
+数据表：orders, cars, users
+
+功能3：用户管理
+对应代码：AdminUsers.vue
+后端接口：GET /api/admin/users → /users/{userId}
+业务逻辑：AdminController.getUsers() → getUserDetail()
+  1. 查询所有用户
+  2. 统计订单数、优惠券数
+  3. 查看用户详情（订单、优惠券）
+数据表：users, orders
+
+功能4：消息中心（客服）
+对应代码：AdminMessages.vue
+后端接口：GET /api/messages/conversations → /conversation/{userId}
+业务逻辑：MessageService.getConversationList() → getConversation()
+  1. 获取对话列表
+  2. 显示未读消息数
+  3. 实时聊天
+数据表：messages
+
+功能5：评价汇总
+对应代码：AdminReviews.vue
+后端接口：GET /api/admin/reviews
+业务逻辑：AdminController.getReviews()
+  1. 查询所有已评价订单
+  2. 计算评分分布（1-5星）
+  3. 计算平均评分
+数据表：orders
+
+
+三、关键代码文件说明
+================================================================
+
+前端文件（frontend/src/）：
+├── views/
+│   ├── Login.vue          # 登录/注册/找回密码
+│   ├── Home.vue           # 首页（车辆展示）
+│   ├── CarDetail.vue      # 车辆详情/租车/预约
+│   ├── OrderCenter.vue    # 订单管理
+│   ├── AIAssistant.vue    # AI智能选车
+│   ├── UserSupport.vue    # 客服中心（用户端）
+│   ├── UserProfile.vue    # 个人信息管理
+│   ├── AdminDashboard.vue # 管理员仪表盘
+│   ├── AdminOrders.vue    # 管理员订单管理
+│   ├── AdminUsers.vue     # 管理员用户管理
+│   ├── AdminMessages.vue  # 管理员消息中心
+│   └── AdminReviews.vue   # 管理员评价汇总
+├── api/
+│   └── index.js           # API请求封装
+├── router/
+│   └── index.js           # 路由配置
+└── components/
+    └── AiRabbit.vue       # AI助手组件
+
+后端文件（backend/src/）：
+├── controller/
+│   ├── AuthController.java      # 认证接口
+│   ├── UserController.java      # 用户接口
+│   ├── OrderController.java     # 订单接口
+│   ├── CarController.java       # 车辆接口
+│   ├── MessageController.java   # 消息接口
+│   ├── AdminController.java     # 管理员接口
+│   └── PaymentController.java   # 支付接口
+├── service/
+│   ├── UserService.java         # 用户业务逻辑
+│   ├── OrderService.java        # 订单业务逻辑
+│   ├── CarService.java          # 车辆业务逻辑
+│   ├── AIService.java           # AI选车逻辑
+│   ├── MessageService.java      # 消息业务逻辑
+│   └── EmailService.java        # 邮件服务
+├── entity/
+│   ├── User.java                # 用户实体
+│   ├── Car.java                 # 车辆实体
+│   ├── Order.java               # 订单实体
+│   ├── Message.java             # 消息实体
+│   └── Driver.java              # 司机实体
+└── mapper/
+    ├── UserMapper.java          # 用户数据访问
+    ├── CarMapper.java           # 车辆数据访问
+    ├── OrderMapper.java         # 订单数据访问
+    └── MessageMapper.java       # 消息数据访问
+
+
+四、数据流转示例（以立即租车为例）
+================================================================
+
+1. 用户在CarDetail.vue选择租车时间，点击"确认租车并支付押金"
+         │
+         ▼
+2. 前端调用 api.post('/orders/rent', {...})
+         │
+         ▼
+3. Axios拦截器添加Token到请求头
+         │
+         ▼
+4. Vite代理转发到 http://localhost:8080/api/orders/rent
+         │
+         ▼
+5. JwtInterceptor验证Token，提取userId
+         │
+         ▼
+6. OrderController.rent()接收请求，调用OrderService.createOrder()
+         │
+         ▼
+7. OrderService执行业务逻辑：
+   - 校验车辆状态
+   - 检查时间冲突
+   - 计算租金
+   - 创建订单（status=0）
+         │
+         ▼
+8. OrderMapper.insert(order) 执行SQL插入orders表
+         │
+         ▼
+9. 返回Result.success(order)给前端
+         │
+         ▼
+10. 前端收到响应，弹出支付弹窗
+         │
+         ▼
+11. 用户点击支付，调用 /api/orders/pay-deposit/{id}
+         │
+         ▼
+12. OrderService.payDeposit()更新订单状态→1，车辆状态→1
+         │
+         ▼
+13. 支付完成，跳转到订单中心
