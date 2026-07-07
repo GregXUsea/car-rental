@@ -32,6 +32,9 @@ public class AdminController {
     private CarMapper carMapper;
 
     @Autowired
+    private CouponMapper couponMapper;
+
+    @Autowired
     private DriverMapper driverMapper;
 
     // 检查是否管理员
