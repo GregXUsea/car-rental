@@ -116,33 +116,32 @@ public class AIService {
                 result.put("reply", generateLocalReply(userMessage));
             } else {
                 try {
+                    // 获取可用车辆列表，传给AI
+                    List<Car> availableCars = carService.listRentable();
+                    StringBuilder carListStr = new StringBuilder();
+                    for (Car car : availableCars) {
+                        carListStr.append(String.format("ID:%d, %s %s, %s, %d座, ¥%.0f/天, %s\n",
+                                car.getId(), car.getBrand(), car.getModel(), car.getColor(),
+                                car.getSeats(), car.getPricePerDay(),
+                                car.getUsageType() != null ? car.getUsageType() : "通用"));
+                    }
+
                     String systemPrompt = "你是「御途租车」的AI智能助手，名叫「途途」。\n\n" +
+                            "## 可用车辆列表\n" + carListStr + "\n\n" +
                             "## 回答规范\n" +
                             "- 用中文回答，语言自然流畅\n" +
                             "- 回答详细充实，给出具体建议\n" +
                             "- 结构清晰，使用分点列表\n" +
                             "- 记住对话上下文\n" +
-                            "- 即使问题与租车无关，也要友好回答\n" +
-                            "- 保持积极乐观的态度\n\n" +
+                            "- 即使问题与租车无关，也要友好回答\n\n" +
                             "## 车辆推荐规则\n" +
-                            "当用户询问以下问题时，必须推荐车辆并在回答末尾添加链接：\n" +
-                            "- 任何与车相关的问题（车型、品牌、价格、性能等）\n" +
-                            "- 出行、旅游、通勤等可能需要用车的场景\n" +
-                            "- 询问推荐、建议、选择等问题\n\n" +
-                            "## 车辆链接格式\n" +
-                            "在回答末尾添加可点击链接，格式为：\n" +
+                            "当用户询问与车、出行、旅游、通勤等相关问题时，必须推荐车辆。\n" +
+                            "从上面的可用车辆列表中选择合适的车辆推荐。\n\n" +
+                            "## 车辆链接格式（重要！）\n" +
+                            "推荐车辆时，必须在回答中添加可点击链接，格式严格如下：\n" +
                             "[查看XX车型详情](/car/车辆ID)\n" +
                             "例如：[查看宝马5系详情](/car/13)\n\n" +
-                            "## 回答示例\n" +
-                            "用户问「推荐商务车」时：\n" +
-                            "1. 推荐2-3个具体车型\n" +
-                            "2. 说明每个车型的优势和适用场景\n" +
-                            "3. 给出价格范围\n" +
-                            "4. 在末尾添加车辆链接\n\n" +
-                            "用户问「什么是SUV」时：\n" +
-                            "1. 解释SUV的定义和特点\n" +
-                            "2. 推荐适合的SUV车型\n" +
-                            "3. 在末尾添加车辆链接";
+                            "注意：车辆ID必须是上面列表中的真实ID！";
 
                     String response = callOpenAIWithHistory(systemPrompt, userMessage, history);
                     result.put("type", "text");
